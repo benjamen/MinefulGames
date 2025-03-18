@@ -17,7 +17,7 @@
        "noImplicitReturns":false,
        "noImplicitUseStrict":false,
        "outDir":"lib",
-       "rootDir": ".",
+       "rootDir": "./scripts",
        "baseUrl":"behavior_packs/",
        "listFiles":false,
        "noEmitHelpers":true,

@@ -1,5 +1,14 @@
 import { GameSetup } from "./gamesetup";
-import { world, system, BlockPermutation, ItemStack, Player, Dimension } from "@minecraft/server";
+import {
+  world,
+  system,
+  DimensionLocation,
+  BlockPermutation,
+  EntityInventoryComponent,
+  ItemStack,
+  DisplaySlotId,
+  Vector3,
+} from "@minecraft/server";
 import Utilities from "./Utilities.js";
 import { Vector3Utils } from "@minecraft/math";
 import {
@@ -9,33 +18,44 @@ import {
   MinecraftItemTypes,
 } from "@minecraft/vanilla-data";
 
-interface GameLocation {
-  x: number;
-  y: number;
-  z: number;
-  dimension: Dimension;
-}
+// Define game-specific logic
+export function Game1(log: (message: string, status?: number) => void, location: DimensionLocation) {
+  const players = world.getAllPlayers(); // Get all players in the game
 
-export function Game1(log: (message: string, level?: number) => void, location: GameLocation): void {
-  const players: Player[] = world.getAllPlayers();
-
+  // Instantiate the game setup with specific parameters
   const gameName = "Break the Terracotta";
   const gameDescription = "Destroy as much terracotta as possible to earn points!";
-  const timerMinutes = 15;
-  const gameMode = "survival";
-  const dayOrNight = "day";
-  const difficulty = "easy";
-  const maxPlayers = 10;
-  const minPlayers = 2;
+  const timerMinutes = 15; // Set timer to 15 minutes
+  const gameMode = "survival"; // Game mode (use actual GameMode enum or string)
+  const dayOrNight: "day" | "night" = "day"; // Set to "day" or "night"
+  const difficulty: "peaceful" | "easy" | "normal" | "hard" = "easy"; // Set the desired difficulty
+  const maxPlayers = 10; // Max number of players (example value)
+  const minPlayers = 2; // Min number of players (example value)
+  const playerScores = new Map<string, number>(); // Player name (or UUID) -> Score
 
+  // Include dimension in the game area object
   const gameArea = {
     x: location.x,
     y: location.y,
     z: location.z,
-    dimension: location.dimension,
+    dimension: location.dimension, // Pass the dimension here
   };
 
-  const gameSetup = new GameSetup(gameName, gameDescription, timerMinutes, gameMode, dayOrNight, difficulty);
+  // Instantiate GameSetup with the updated constructor parameters
+  const gameSetup = new GameSetup(
+    gameName,
+    gameDescription,
+    timerMinutes,
+    gameMode, // Passing the game mode
+    dayOrNight, // Passing the time of day (day or night)
+    difficulty, // Passing the difficulty level
+  );
+
+  // Setup scoreboard
+  const scoreboard = gameSetup.setupScoreboard();
+  log("Scoreboard initialized.", 1);
+
+  // Start the game with the game setup
   gameSetup.startGame(players, gameArea);
 
   const START_TICK = 100;
@@ -44,97 +64,186 @@ export function Game1(log: (message: string, level?: number) => void, location: 
   const ARENA_X_OFFSET = 0;
   const ARENA_Y_OFFSET = -60;
   const ARENA_Z_OFFSET = 0;
-  const ARENA_VECTOR_OFFSET = { x: ARENA_X_OFFSET, y: ARENA_Y_OFFSET, z: ARENA_Z_OFFSET };
-  const playerScores = new Map<string, number>();
+  const ARENA_VECTOR_OFFSET: Vector3 = { x: ARENA_X_OFFSET, y: ARENA_Y_OFFSET, z: ARENA_Z_OFFSET };
 
+  // global variables
   let curTick = 0;
   let score = 0;
   let cottaX = 0;
   let cottaZ = 0;
   let spawnCountdown = 1;
 
-  function initializeBreakTheTerracotta(): void {
+  function initializeBreakTheTerracotta() {
     const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
-    let scoreObjective = world.scoreboard.getObjective("points");
+
+    let scoreObjective = world.scoreboard.getObjective("points"); // Use the one managed by GameSetup
 
     if (!scoreObjective) {
       log("Score objective not found.", 0);
     }
 
-    overworld.getEntities({ excludeTypes: [MinecraftEntityTypes.Player] }).forEach(entity => entity.kill());
-
-    players.forEach(player => {
-      playerScores.set(player.name, 0);
-      scoreObjective?.setScore(player, 0);
-      const inv = player.getComponent("inventory");
-      inv?.container?.addItem(new ItemStack(MinecraftItemTypes.DiamondSword));
-      inv?.container?.addItem(new ItemStack(MinecraftItemTypes.Dirt, 64));
-      player.teleport(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: -3, y: 0, z: -3 }), {
-        dimension: overworld,
-        rotation: { x: 0, y: 0 },
-      });
+    // eliminate pesky nearby mobs
+    let entities = overworld.getEntities({
+      excludeTypes: [MinecraftEntityTypes.Player],
     });
+
+    for (let entity of entities) {
+      entity.kill();
+    }
+
+    const players = world.getAllPlayers();
+
+    for (const player of players) {
+        playerScores.set(player.name, 0); // Reset player score in the map
+        if (scoreObjective) {
+            scoreObjective.setScore(player, 0); // Reset scoreboard
+        }
+
+        let inv = player.getComponent("inventory") as EntityInventoryComponent;
+        inv.container?.addItem(new ItemStack(MinecraftItemTypes.DiamondSword));
+        inv.container?.addItem(new ItemStack(MinecraftItemTypes.Dirt, 64));
+
+        player.teleport(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: -3, y: 0, z: -3 }), {
+            dimension: overworld,
+            rotation: { x: 0, y: 0 },
+        });
+    }
 
     world.sendMessage("BREAK THE TERRACOTTA");
 
-    Utilities.fillBlock(BlockPermutation.resolve(MinecraftBlockTypes.Air),
-      ARENA_X_OFFSET - ARENA_X_SIZE / 2 + 1,
-      ARENA_Y_OFFSET,
-      ARENA_Z_OFFSET - ARENA_Z_SIZE / 2 + 1,
-      ARENA_X_OFFSET + ARENA_X_SIZE / 2 - 1,
-      ARENA_Y_OFFSET + 10,
-      ARENA_Z_OFFSET + ARENA_Z_SIZE / 2 - 1);
+    let airBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Air);
+    let cobblestoneBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Cobblestone);
 
-    Utilities.fourWalls(BlockPermutation.resolve(MinecraftBlockTypes.Cobblestone),
-      ARENA_X_OFFSET - ARENA_X_SIZE / 2,
-      ARENA_Y_OFFSET,
-      ARENA_Z_OFFSET - ARENA_Z_SIZE / 2,
-      ARENA_X_OFFSET + ARENA_X_SIZE / 2,
-      ARENA_Y_OFFSET + 10,
-      ARENA_Z_OFFSET + ARENA_Z_SIZE / 2);
+    if (airBlockPerm) {
+      Utilities.fillBlock(
+        airBlockPerm,
+        ARENA_X_OFFSET - ARENA_X_SIZE / 2 + 1,
+        ARENA_Y_OFFSET,
+        ARENA_Z_OFFSET - ARENA_Z_SIZE / 2 + 1,
+        ARENA_X_OFFSET + ARENA_X_SIZE / 2 - 1,
+        ARENA_Y_OFFSET + 10,
+        ARENA_Z_OFFSET + ARENA_Z_SIZE / 2 - 1
+      );
+    }
+
+    if (cobblestoneBlockPerm) {
+      Utilities.fourWalls(
+        cobblestoneBlockPerm,
+        ARENA_X_OFFSET - ARENA_X_SIZE / 2,
+        ARENA_Y_OFFSET,
+        ARENA_Z_OFFSET - ARENA_Z_SIZE / 2,
+        ARENA_X_OFFSET + ARENA_X_SIZE / 2,
+        ARENA_Y_OFFSET + 10,
+        ARENA_Z_OFFSET + ARENA_Z_SIZE / 2
+      );
+    }
   }
 
-  function gameTick(): void {
+  function gameTick() {
     try {
       curTick++;
-      if (curTick === START_TICK) initializeBreakTheTerracotta();
-      if (curTick > START_TICK && curTick % 20 === 0) spawnCountdown > 0 ? spawnCountdown-- : checkForTerracotta();
-      if (curTick > START_TICK && curTick % Math.ceil(200 / ((score + 1) / 3)) === 0) spawnMobs();
-      if (curTick > START_TICK && curTick % 29 === 0) addFuzzyLeaves();
+
+      if (curTick === START_TICK) {
+        initializeBreakTheTerracotta();
+      }
+
+      if (curTick > START_TICK && curTick % 20 === 0) {
+        // no terracotta exists, and we're waiting to spawn a new one.
+        if (spawnCountdown > 0) {
+          spawnCountdown--;
+
+          if (spawnCountdown <= 0) {
+            spawnNewTerracotta();
+          }
+        } else {
+          checkForTerracotta();
+        }
+      }
+
+      const spawnInterval = Math.ceil(200 / ((score + 1) / 3));
+      if (curTick > START_TICK && curTick % spawnInterval === 0) {
+        spawnMobs();
+      }
+
+      if (curTick > START_TICK && curTick % 29 === 0) {
+        addFuzzyLeaves();
+      }
     } catch (e) {
       console.warn("Tick error: " + e);
     }
+
     system.run(gameTick);
   }
 
-  function spawnNewTerracotta(): void {
+  function spawnNewTerracotta() {
     const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
+
+    // create new terracotta
     cottaX = Math.floor(Math.random() * (ARENA_X_SIZE - 1)) - (ARENA_X_SIZE / 2 - 1);
     cottaZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 1)) - (ARENA_Z_SIZE / 2 - 1);
-    world.sendMessage("Creating new terracotta!");
-    overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }))?.setPermutation(BlockPermutation.resolve(MinecraftBlockTypes.YellowGlazedTerracotta));
-  }
 
-  function checkForTerracotta(): void {
-    const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
-    const block = overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
-    if (block && !block.permutation.matches(MinecraftBlockTypes.YellowGlazedTerracotta)) {
-      players.forEach(player => {
-        const newScore = (playerScores.get(player.name) || 0) + 1;
-        playerScores.set(player.name, newScore);
-        world.scoreboard.getObjective("points")?.setScore(player, newScore);
-      });
-      world.sendMessage("You broke the terracotta! Creating new terracotta in a few seconds.");
-      cottaX = -1;
-      cottaZ = -1;
-      spawnCountdown = 2;
+    world.sendMessage("Creating new terracotta!");
+    let block = overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
+
+    if (block) {
+      block.setPermutation(BlockPermutation.resolve(MinecraftBlockTypes.YellowGlazedTerracotta));
     }
   }
 
-  function spawnMobs(): void {
+  function checkForTerracotta() {
     const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
-    for (let j = 0; j < Math.floor(Math.random() * 2) + 1; j++) {
-      overworld.spawnEntity(MinecraftEntityTypes.Zombie, Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: Math.random() * (ARENA_X_SIZE - 2) - ARENA_X_SIZE / 2, y: 1, z: Math.random() * (ARENA_Z_SIZE - 2) - ARENA_Z_SIZE / 2 }));
+
+    let block = overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
+
+    if (block && !block.permutation.matches(MinecraftBlockTypes.YellowGlazedTerracotta)) {
+        // Terracotta block broken, increment player's score
+        const players = world.getAllPlayers();
+        for (const player of players) {
+            const currentScore = playerScores.get(player.name) || 0; // Get current score
+            const newScore = currentScore + 1; // Increment by 1
+            playerScores.set(player.name, newScore); // Update map
+            const scoreObjective = world.scoreboard.getObjective("points"); // Use "points" objective
+            
+            if (scoreObjective) {
+                scoreObjective.setScore(player, newScore); // Update player's score on scoreboard
+            }
+        }
+
+        world.sendMessage("You broke the terracotta! Creating new terracotta in a few seconds.");
+        cottaX = -1;
+        cottaZ = -1;
+        spawnCountdown = 2;
+    }
+}
+
+  function spawnMobs() {
+    const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
+
+    // spawn mobs = create 1-2 mobs
+    let spawnMobCount = Math.floor(Math.random() * 2) + 1;
+
+    for (let j = 0; j < spawnMobCount; j++) {
+      let zombieX = Math.floor(Math.random() * (ARENA_X_SIZE - 2)) - ARENA_X_SIZE / 2;
+      let zombieZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 2)) - ARENA_Z_SIZE / 2;
+
+      overworld.spawnEntity(
+        MinecraftEntityTypes.Zombie,
+        Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: zombieX, y: 1, z: zombieZ })
+      );
+    }
+  }
+
+   function addFuzzyLeaves() {
+    const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
+
+    for (let i = 0; i < 10; i++) {
+      const leafX = Math.floor(Math.random() * (ARENA_X_SIZE - 1)) - (ARENA_X_SIZE / 2 - 1);
+      const leafY = Math.floor(Math.random() * 10);
+      const leafZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 1)) - (ARENA_Z_SIZE / 2 - 1);
+
+      overworld
+        .getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: leafX, y: leafY, z: leafZ }))
+        ?.setPermutation(BlockPermutation.resolve("minecraft:leaves"));
     }
   }
 
