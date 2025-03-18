@@ -1,4 +1,12 @@
-import { world, system, DimensionLocation, DisplaySlotId, GameMode, MinecraftDimensionTypes, EntityInventoryComponent } from "@minecraft/server";
+import {
+  world,
+  system,
+  DimensionLocation,
+  DisplaySlotId,
+  GameMode,
+  MinecraftDimensionTypes,
+  EntityInventoryComponent,
+} from "@minecraft/server";
 
 export class GameSetup {
   private gameTimer: number = 0; // Time in seconds
@@ -74,6 +82,7 @@ export class GameSetup {
       dimension.runCommand(
         `fill ${x - arenaSize} ${y} ${z - arenaSize} ${x + arenaSize} ${y + 10} ${z + arenaSize} air`
       );
+
       world.sendMessage(`🧹 Cleared the game arena!`);
     } catch (error) {
       world.sendMessage(`⚠️ Failed to clear arena: ${error}`);
@@ -81,26 +90,26 @@ export class GameSetup {
   }
 
   // Clear the inventories of all players
- private clearPlayerInventories(players: any[]) {
-  players.forEach((player) => {
-    try {
-      // Access the inventory component
-      const inventory = player.getComponent("inventory") as EntityInventoryComponent;
-      if (inventory && inventory.container) {
-        // Loop through all slots and clear them
-        for (let i = 0; i < inventory.container.size; i++) {
-          inventory.container.setItem(i, undefined); // Clear item in each slot
+  private clearPlayerInventories(players: any[]) {
+    players.forEach((player) => {
+      try {
+        // Access the inventory component
+        const inventory = player.getComponent("inventory") as EntityInventoryComponent;
+        if (inventory && inventory.container) {
+          // Loop through all slots and clear them
+          for (let i = 0; i < inventory.container.size; i++) {
+            inventory.container.setItem(i, undefined); // Clear item in each slot
+          }
+          player.sendMessage(`🧹 Your inventory has been cleared!`);
+        } else {
+          player.sendMessage("⚠️ Could not clear inventory. No inventory found.");
         }
-        player.sendMessage(`🧹 Your inventory has been cleared!`);
-      } else {
-        player.sendMessage("⚠️ Could not clear inventory. No inventory found.");
+      } catch (error) {
+        world.sendMessage(`⚠️ Failed to clear inventory for player ${player.name}: ${error}`);
       }
-    } catch (error) {
-      world.sendMessage(`⚠️ Failed to clear inventory for player ${player.name}: ${error}`);
-    }
-  });
-  world.sendMessage("🧹 Cleared all players' inventories!");
-}
+    });
+    world.sendMessage("🧹 Cleared all players' inventories!");
+  }
 
   // Map the game mode string to the GameMode enum
   private getGameModeEnum(): GameMode {
@@ -162,13 +171,38 @@ export class GameSetup {
     });
   }
 
+  // Create a new scoreboard objective
+  private createScoreObjective() {
+    try {
+      const objective = world.scoreboard.addObjective("points", "Points");
+      world.sendMessage(`✅ Created new scoreboard objective: points`);
+      return objective;
+    } catch (error) {
+      world.sendMessage(`⚠️ Failed to create scoreboard objective: ${error}`);
+      throw error;
+    }
+  }
+
+  // Setup a scoreboard sidebar
   // Setup a scoreboard sidebar
   setupScoreboard() {
-    const objective = world.scoreboard.addObjective("points", "Points");
+    let scoreObjective = world.scoreboard.getObjective("points");
+
+    // Create objective only if it doesn't exist
+    if (!scoreObjective) {
+      scoreObjective = this.createScoreObjective();
+      if (!scoreObjective) {
+        console.error("Failed to create scoreboard objective.");
+        return null;
+      }
+    }
+
+    // Ensure the objective is displayed in the sidebar
     world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
-      objective,
+      objective: scoreObjective,
     });
-    return objective;
+
+    return scoreObjective;
   }
 
   // Reset player scores before starting the game

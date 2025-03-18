@@ -1,5 +1,11 @@
 // scripts/gamesetup.ts
-import { world, system, DisplaySlotId, GameMode, MinecraftDimensionTypes } from "@minecraft/server";
+import {
+  world,
+  system,
+  DisplaySlotId,
+  GameMode,
+  MinecraftDimensionTypes
+} from "@minecraft/server";
 var GameSetup = class {
   // Difficulty setting
   constructor(gameName, gameDescription, timerMinutes, gameMode, dayOrNight, difficulty) {
@@ -119,13 +125,32 @@ var GameSetup = class {
       player.sendMessage(`\u{1F3E0} Returning to the lobby!`);
     });
   }
+  // Create a new scoreboard objective
+  createScoreObjective() {
+    try {
+      const objective = world.scoreboard.addObjective("points", "Points");
+      world.sendMessage(`\u2705 Created new scoreboard objective: points`);
+      return objective;
+    } catch (error) {
+      world.sendMessage(`\u26A0\uFE0F Failed to create scoreboard objective: ${error}`);
+      throw error;
+    }
+  }
+  // Setup a scoreboard sidebar
   // Setup a scoreboard sidebar
   setupScoreboard() {
-    const objective = world.scoreboard.addObjective("points", "Points");
+    let scoreObjective = world.scoreboard.getObjective("points");
+    if (!scoreObjective) {
+      scoreObjective = this.createScoreObjective();
+      if (!scoreObjective) {
+        console.error("Failed to create scoreboard objective.");
+        return null;
+      }
+    }
     world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
-      objective
+      objective: scoreObjective
     });
-    return objective;
+    return scoreObjective;
   }
   // Reset player scores before starting the game
   resetPlayerScores(players) {
@@ -146,9 +171,21 @@ var GameSetup = class {
 import {
   world as world3,
   system as system2,
-  BlockPermutation,
+  BlockPermutation as BlockPermutation2,
   ItemStack
 } from "@minecraft/server";
+
+// scripts/setupInventory.ts
+function setupInventory(player, items) {
+  let inv = player.getComponent("inventory");
+  if (!inv || !inv.container) return;
+  for (const item of items) {
+    inv.container.addItem(item);
+  }
+}
+
+// scripts/createArena.ts
+import { BlockPermutation } from "@minecraft/server";
 
 // scripts/Utilities.ts
 import { world as world2 } from "@minecraft/server";
@@ -3177,6 +3214,34 @@ var Utilities = class {
   }
 };
 
+// scripts/createArena.ts
+function createArena(dimensions) {
+  let airBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Air);
+  let cobblestoneBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Cobblestone);
+  if (airBlockPerm) {
+    Utilities.fillBlock(
+      airBlockPerm,
+      dimensions.xOffset - dimensions.xSize / 2 + 1,
+      dimensions.yOffset,
+      dimensions.zOffset - dimensions.zSize / 2 + 1,
+      dimensions.xOffset + dimensions.xSize / 2 - 1,
+      dimensions.yOffset + dimensions.ySize,
+      dimensions.zOffset + dimensions.zSize / 2 - 1
+    );
+  }
+  if (cobblestoneBlockPerm) {
+    Utilities.fourWalls(
+      cobblestoneBlockPerm,
+      dimensions.xOffset - dimensions.xSize / 2,
+      dimensions.yOffset,
+      dimensions.zOffset - dimensions.zSize / 2,
+      dimensions.xOffset + dimensions.xSize / 2,
+      dimensions.yOffset + dimensions.ySize,
+      dimensions.zOffset + dimensions.zSize / 2
+    );
+  }
+}
+
 // node_modules/@minecraft/math/lib/general/clamp.js
 function clampNumber(val, min, max) {
   return Math.min(Math.max(val, min), max);
@@ -3376,9 +3441,10 @@ var Vector3Utils = class _Vector3Utils {
 
 // scripts/Game1.ts
 function Game1(log, location) {
+  const overworld = world3.getDimension(MinecraftDimensionTypes2.Overworld);
   const players = world3.getAllPlayers();
-  const gameName = "Break the Terracotta";
-  const gameDescription = "Destroy as much terracotta as possible to earn points!";
+  const gameName = "Mine the Diamonds!";
+  const gameDescription = "Mine as many diamonds as possible to earn points!";
   const timerMinutes = 15;
   const gameMode = "survival";
   const dayOrNight = "day";
@@ -3412,77 +3478,49 @@ function Game1(log, location) {
   const ARENA_Y_OFFSET = -60;
   const ARENA_Z_OFFSET = 0;
   const ARENA_VECTOR_OFFSET = { x: ARENA_X_OFFSET, y: ARENA_Y_OFFSET, z: ARENA_Z_OFFSET };
+  const startingInventory = [
+    new ItemStack(MinecraftItemTypes.DiamondSword),
+    new ItemStack(MinecraftItemTypes.Dirt, 64)
+  ];
+  const arenaDimensions = {
+    xOffset: ARENA_X_OFFSET,
+    yOffset: ARENA_Y_OFFSET,
+    zOffset: ARENA_Z_OFFSET,
+    xSize: ARENA_X_SIZE,
+    ySize: 10,
+    zSize: ARENA_Z_SIZE
+  };
   let curTick = 0;
   let score = 0;
   let cottaX = 0;
   let cottaZ = 0;
   let spawnCountdown = 1;
-  function initializeBreakTheTerracotta() {
-    const overworld = world3.getDimension(MinecraftDimensionTypes2.Overworld);
-    let scoreObjective = world3.scoreboard.getObjective("points");
-    if (!scoreObjective) {
-      log("Score objective not found.", 0);
-    }
-    let entities = overworld.getEntities({
-      excludeTypes: [MinecraftEntityTypes.Player]
-    });
-    for (let entity of entities) {
-      entity.kill();
-    }
-    const players2 = world3.getAllPlayers();
-    for (const player of players2) {
+  function MinetheDiamonds() {
+    for (const player of players) {
       playerScores.set(player.name, 0);
-      if (scoreObjective) {
-        scoreObjective.setScore(player, 0);
-      }
-      let inv = player.getComponent("inventory");
-      inv.container?.addItem(new ItemStack(MinecraftItemTypes.DiamondSword));
-      inv.container?.addItem(new ItemStack(MinecraftItemTypes.Dirt, 64));
+      setupInventory(player, startingInventory);
       player.teleport(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: -3, y: 0, z: -3 }), {
         dimension: overworld,
         rotation: { x: 0, y: 0 }
       });
     }
-    world3.sendMessage("BREAK THE TERRACOTTA");
-    let airBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Air);
-    let cobblestoneBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Cobblestone);
-    if (airBlockPerm) {
-      Utilities.fillBlock(
-        airBlockPerm,
-        ARENA_X_OFFSET - ARENA_X_SIZE / 2 + 1,
-        ARENA_Y_OFFSET,
-        ARENA_Z_OFFSET - ARENA_Z_SIZE / 2 + 1,
-        ARENA_X_OFFSET + ARENA_X_SIZE / 2 - 1,
-        ARENA_Y_OFFSET + 10,
-        ARENA_Z_OFFSET + ARENA_Z_SIZE / 2 - 1
-      );
-    }
-    if (cobblestoneBlockPerm) {
-      Utilities.fourWalls(
-        cobblestoneBlockPerm,
-        ARENA_X_OFFSET - ARENA_X_SIZE / 2,
-        ARENA_Y_OFFSET,
-        ARENA_Z_OFFSET - ARENA_Z_SIZE / 2,
-        ARENA_X_OFFSET + ARENA_X_SIZE / 2,
-        ARENA_Y_OFFSET + 10,
-        ARENA_Z_OFFSET + ARENA_Z_SIZE / 2
-      );
-    }
+    world3.sendMessage("BREAK THE DIAMOND BLOCKS!");
+    createArena(arenaDimensions);
   }
   function gameTick() {
     try {
       curTick++;
       if (curTick === START_TICK) {
-        initializeBreakTheTerracotta();
+        MinetheDiamonds();
       }
       if (curTick > START_TICK && curTick % 20 === 0) {
         if (spawnCountdown > 0) {
           spawnCountdown--;
           if (spawnCountdown <= 0) {
-            spawnNewTerracotta();
+            spawnNewBlock();
           }
         } else {
-          checkForTerracotta();
+          checkForLessBlocks();
         }
       }
       const spawnInterval = Math.ceil(200 / ((score + 1) / 3));
@@ -3490,27 +3528,27 @@ function Game1(log, location) {
         spawnMobs();
       }
       if (curTick > START_TICK && curTick % 29 === 0) {
-        addFuzzyLeaves();
+        addBlockItemsRandomly();
       }
     } catch (e) {
       console.warn("Tick error: " + e);
     }
     system2.run(gameTick);
   }
-  function spawnNewTerracotta() {
-    const overworld = world3.getDimension(MinecraftDimensionTypes2.Overworld);
+  function spawnNewBlock() {
+    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
     cottaX = Math.floor(Math.random() * (ARENA_X_SIZE - 1)) - (ARENA_X_SIZE / 2 - 1);
     cottaZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 1)) - (ARENA_Z_SIZE / 2 - 1);
-    world3.sendMessage("Creating new terracotta!");
-    let block = overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
+    world3.sendMessage("Creating new diamond ore!");
+    let block = overworld2.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
     if (block) {
-      block.setPermutation(BlockPermutation.resolve(MinecraftBlockTypes.YellowGlazedTerracotta));
+      block.setPermutation(BlockPermutation2.resolve(MinecraftBlockTypes.DiamondOre));
     }
   }
-  function checkForTerracotta() {
-    const overworld = world3.getDimension(MinecraftDimensionTypes2.Overworld);
-    let block = overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
-    if (block && !block.permutation.matches(MinecraftBlockTypes.YellowGlazedTerracotta)) {
+  function checkForLessBlocks() {
+    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
+    let block = overworld2.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
+    if (block && !block.permutation.matches(MinecraftBlockTypes.DiamondOre)) {
       const players2 = world3.getAllPlayers();
       for (const player of players2) {
         const currentScore = playerScores.get(player.name) || 0;
@@ -3521,31 +3559,31 @@ function Game1(log, location) {
           scoreObjective.setScore(player, newScore);
         }
       }
-      world3.sendMessage("You broke the terracotta! Creating new terracotta in a few seconds.");
+      world3.sendMessage("You mined the Diamond! Creating new ore in a few seconds.");
       cottaX = -1;
       cottaZ = -1;
       spawnCountdown = 2;
     }
   }
   function spawnMobs() {
-    const overworld = world3.getDimension(MinecraftDimensionTypes2.Overworld);
+    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
     let spawnMobCount = Math.floor(Math.random() * 2) + 1;
     for (let j = 0; j < spawnMobCount; j++) {
       let zombieX = Math.floor(Math.random() * (ARENA_X_SIZE - 2)) - ARENA_X_SIZE / 2;
       let zombieZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 2)) - ARENA_Z_SIZE / 2;
-      overworld.spawnEntity(
+      overworld2.spawnEntity(
         MinecraftEntityTypes.Zombie,
         Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: zombieX, y: 1, z: zombieZ })
       );
     }
   }
-  function addFuzzyLeaves() {
-    const overworld = world3.getDimension(MinecraftDimensionTypes2.Overworld);
+  function addBlockItemsRandomly() {
+    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
     for (let i = 0; i < 10; i++) {
       const leafX = Math.floor(Math.random() * (ARENA_X_SIZE - 1)) - (ARENA_X_SIZE / 2 - 1);
       const leafY = Math.floor(Math.random() * 10);
       const leafZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 1)) - (ARENA_Z_SIZE / 2 - 1);
-      overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: leafX, y: leafY, z: leafZ }))?.setPermutation(BlockPermutation.resolve("minecraft:leaves"));
+      overworld2.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: leafX, y: leafY, z: leafZ }))?.setPermutation(BlockPermutation2.resolve("minecraft:leaves"));
     }
   }
   system2.run(gameTick);
