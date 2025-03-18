@@ -1,4 +1,4 @@
-import { world, system, DimensionLocation, DisplaySlotId, GameMode, MinecraftDimensionTypes } from "@minecraft/server";
+import { world, system, DimensionLocation, DisplaySlotId, GameMode, MinecraftDimensionTypes, EntityInventoryComponent } from "@minecraft/server";
 
 export class GameSetup {
   private gameTimer: number = 0; // Time in seconds

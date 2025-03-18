@@ -51,10 +51,6 @@ export function Game1(log: (message: string, status?: number) => void, location:
     difficulty, // Passing the difficulty level
   );
 
-  // Setup scoreboard
-  const scoreboard = gameSetup.setupScoreboard();
-  log("Scoreboard initialized.", 1);
-
   // Start the game with the game setup
   gameSetup.startGame(players, gameArea);
 
