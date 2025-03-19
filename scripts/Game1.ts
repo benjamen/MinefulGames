@@ -1,10 +1,21 @@
-import { GameSetup } from "./gamesetup";
-import { world, system, DimensionLocation, ItemStack, Vector3, Player } from "@minecraft/server";
+import { 
+  GameSetup 
+} from "./gamesetup";
+import { 
+  world, 
+  system, 
+  DimensionLocation, 
+  ItemStack, 
+  Vector3, 
+  Player 
+} from "@minecraft/server";
 import { setupInventory } from "./setupInventory";
-import { spawnNewBlock, checkForLessBlocks, spawnMobs, placeRandomBlockItems } from "./gameHelpers";
+import { spawnNewBlock, spawnMobs, placeRandomBlockItems } from "./gameHelpers";
 import { MinecraftItemTypes } from "@minecraft/vanilla-data";
 
-// Define a GameConfig Interface
+/**
+ * Define a GameConfig Interface
+ */
 interface GameConfig {
   name: string;
   description: string;
@@ -15,28 +26,50 @@ interface GameConfig {
   maxPlayers: number;
   minPlayers: number;
   arenaSize: { x: number; y: number; z: number };
-  arenaoffset: Vector3;
+  arenaOffset: Vector3; // Renamed to use camelCase for clarity
 }
 
-// Define Game Config
+/**
+ * Define the game configuration.
+ * Here we assume arenaOffset represents the lower‐corner of the arena.
+ */
 const gameConfig: GameConfig = {
   name: "Mine the Diamonds!",
   description: "Mine as many diamonds as possible to earn points!",
-  timerMinutes: 1,
+  timerMinutes: 2,
   gameMode: "survival",
   dayOrNight: "day",
   difficulty: "easy",
   maxPlayers: 10,
-  minPlayers: 2,
-  arenaSize: { x: 30, y: 10, z: 30 }, // Arena Size Centralized
-  arenaoffset: { x: -15, y: -60, z: -15 }, // Arena Offset Centralized,
+  minPlayers: 1,
+  arenaSize: { x: 30, y: 5, z: 30 },
+  arenaOffset: { x: 150, y: -60, z: 0 }, //starting location, flat world -60 is ground
 };
 
-export function Game1(log: (message: string, status?: number) => void, location: DimensionLocation) {
-  // Get all players in the world
-  const players = world.getAllPlayers();
+/**
+ * Entry point of Game1.
+ * Adjustments:
+ * - We construct an arena area (gameArea) based on the arenaOffset and ensure it has the correct dimension.
+ * - That same lower-corner is used in arena cleaning.
+ * - The GameSetup then computes the arena’s center for teleportation.
+ */
+export function Game1(
+  log: (message: string, status?: number) => void,
+  lobbyLocation: DimensionLocation // This likely provides the correct dimension
+) {
+  // Get all players currently in the world.
+  const players: Player[] = world.getAllPlayers().filter(player => 
+  !player.hasTag("game1")
+);
 
-  // Game Setup Using Config
+  // Build the game area from the arenaOffset.
+  // Make sure the arena lower corner uses the same dimension as the lobby (or intended dimension).
+const arenaLowerCorner = {
+  ...gameConfig.arenaOffset, // Spread the properties correctly
+  dimension: world.getDimension("overworld") // Assign the dimension directly
+};
+
+  // Create a GameSetup instance using the configuration.
   const gameSetup = new GameSetup(
     gameConfig.name,
     gameConfig.description,
@@ -46,91 +79,79 @@ export function Game1(log: (message: string, status?: number) => void, location:
     gameConfig.difficulty
   );
 
-  gameSetup.startGame(players, location, gameConfig.arenaoffset, gameConfig.arenaSize);
+  // Start the game by passing the players, the game area (lower-corner), arenaOffset, and arenaSize.
+  // Note: GameSetup.startGame will need to use arenaOffset to compute the arena center.
+  gameSetup.startGame(players, gameConfig.arenaOffset, arenaLowerCorner, gameConfig.arenaSize);
 
-  // Player Inventory Setup (changed to pickaxe instead of sword)
-  const startingInventory = [
+  // Set up each player's inventory.
+  const startingInventory: ItemStack[] = [
     new ItemStack(MinecraftItemTypes.DiamondPickaxe),
-    new ItemStack(MinecraftItemTypes.Dirt, 64), // Changed from DiamondSword to DiamondPickaxe
+    new ItemStack(MinecraftItemTypes.Dirt, 64)
   ];
   players.forEach((player) => setupInventory(player, startingInventory));
 
+  // Game tick variables.
   let curTick = 0;
   let score = 0;
-
   const blockCountThreshold = gameConfig.arenaSize.x * gameConfig.arenaSize.z * 0.1; // 10% of arena area
-  // Threshold for spawning a new block
-
   let missingDiamondBlocks = 0;
   let lastOreDestroyed = false;
 
+  // Subscribe to block break events to check for diamond ore breaks.
   world.beforeEvents.playerBreakBlock.subscribe((eventData) => {
-    // Log the block type before it gets broken
-
-    // Check if the broken block is diamond ore
     if (eventData.block.typeId === "minecraft:diamond_ore") {
-      // Log the event when diamond ore is about to be broken
       console.warn("Warning: Diamond ore block about to be broken!");
-
       lastOreDestroyed = true;
       missingDiamondBlocks++;
 
-      // Log the missing blocks count
-      console.warn(`Missing diamond blocks: ${missingDiamondBlocks}`);
-
-      // Update the score when diamond ore is broken
+      // Update the score and notify the world.
       score++;
       world.sendMessage(`Diamond ore block mined! Score: ${score}`);
 
+      // Update the player's score on the scoreboard.
       gameSetup.updatePlayerScore(eventData.player, score);
     }
   });
 
-  // Start the game tick AFTER the setup is done
-  function startGameTick() {
-    // Game tick logic
-    function gameTick() {
-      try {
-        curTick++;
+  // Define the game tick function.
+  function gameTick() {
+    try {
+      curTick++;
 
-        // Send message to break diamond blocks at tick 100
-        if (curTick === 100) {
-          world.sendMessage("BREAK THE DIAMOND BLOCKS!");
-          spawnNewBlock(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:diamond_ore");
-        }
-
-        // Every 20 ticks after 100, check for missing blocks and spawn new ones if needed
-        if (curTick > 100 && curTick % 20 === 0) {
-          if (lastOreDestroyed && missingDiamondBlocks >= blockCountThreshold) {
-            // Ensure spawnNewBlock function is working
-            spawnNewBlock(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:diamond_ore");
-            missingDiamondBlocks = 0; // Reset the counter after spawning
-            lastOreDestroyed = false; // Reset after spawning the new block
-          }
-        }
-
-        // Dynamically adjust spawn interval based on the score
-        const spawnInterval = Math.ceil(200 / ((score + 1) / 3));
-        if (curTick > 100 && curTick % spawnInterval === 0) {
-          spawnMobs(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:zombie");
-        }
-
-        // Randomly add block items every 29 ticks
-        if (curTick > 100 && curTick % 29 === 0) {
-          placeRandomBlockItems(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:leaves");
-        }
-      } catch (e) {
-        console.warn("Tick error: " + e);
+      // At tick 100, trigger a diamond ore block spawn.
+      if (curTick === 100) {
+        world.sendMessage("BREAK THE DIAMOND BLOCKS!");
+        // Spawn a new diamond ore block in the arena at the specified arenaOffset.
+        spawnNewBlock(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:diamond_ore");
       }
 
-      // Continue the game tick
-      system.runTimeout(gameTick, 1); // Run every tick
+      // Every 20 ticks after tick 100, check for missing blocks and spawn new ones if conditions are met.
+      if (curTick > 100 && curTick % 20 === 0) {
+        if (lastOreDestroyed && missingDiamondBlocks >= blockCountThreshold) {
+          spawnNewBlock(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:diamond_ore");
+          missingDiamondBlocks = 0;
+          lastOreDestroyed = false;
+        }
+      }
+
+      // Dynamically determine a spawn interval based on the score and spawn mobs.
+      const spawnInterval = Math.ceil(200 / ((score + 1) / 3));
+      if (curTick > 100 && curTick % spawnInterval === 0) {
+        spawnMobs(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:zombie");
+      }
+
+      // Every 29 ticks after tick 100, randomly place block items.
+      if (curTick > 100 && curTick % 29 === 0) {
+        placeRandomBlockItems(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:leaves");
+      }
+    } catch (e) {
+      console.warn("Tick error: " + e);
     }
 
-    // Start the game tick after all setup
-    system.run(gameTick);
+    // Schedule the next tick.
+    system.runTimeout(gameTick, 1); // Run every tick
   }
 
-  // Start the game tick after setup is complete
-  startGameTick();
+  // Start the game tick loop after all setup is complete.
+  system.run(gameTick);
 }
