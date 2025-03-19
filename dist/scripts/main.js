@@ -1,194 +1,17 @@
 // scripts/gamesetup.ts
 import {
-  world,
+  world as world2,
   system,
   DisplaySlotId,
   GameMode,
-  MinecraftDimensionTypes
+  MinecraftDimensionTypes as MinecraftDimensionTypes2
 } from "@minecraft/server";
-var GameSetup = class {
-  // Difficulty setting
-  constructor(gameName, gameDescription, timerMinutes, gameMode, dayOrNight, difficulty) {
-    this.gameTimer = 0;
-    this.overallScores = /* @__PURE__ */ new Map();
-    this.gameName = gameName;
-    this.gameDescription = gameDescription;
-    this.gameTimer = timerMinutes * 60;
-    this.gameMode = gameMode;
-    this.dayOrNight = dayOrNight;
-    this.difficulty = difficulty;
-  }
-  // Display game introduction and start timer
-  startGame(players, gameArea) {
-    this.clearObjectives();
-    this.clearArena(gameArea);
-    this.clearPlayerInventories(players);
-    world.sendMessage(`\u{1F3AE} Welcome to ${this.gameName}!`);
-    world.sendMessage(`${this.gameDescription}`);
-    world.sendMessage(`\u23F3 You have ${this.gameTimer / 60} minutes! Good luck!`);
-    this.setWorldSettings();
-    players.forEach((player) => {
-      player.teleport(gameArea);
-      player.sendMessage(`\u{1F680} Teleporting you to the game area!`);
-      player.setGameMode(this.getGameModeEnum());
-    });
-    this.setupScoreboard();
-    this.resetPlayerScores(players);
-    this.startTimer(players);
-  }
-  // Clear all scoreboard objectives
-  clearObjectives() {
-    world.scoreboard.getObjectives().forEach((objective) => {
-      world.scoreboard.removeObjective(objective);
-      world.sendMessage(`\u{1F9F9} Removed scoreboard objective: ${objective.id}`);
-    });
-  }
-  // Clear the arena by setting the specified area to air
-  clearArena(gameArea) {
-    const { x, y, z, dimension } = gameArea;
-    const arenaSize = 20;
-    try {
-      dimension.runCommand(
-        `fill ${x - arenaSize} ${y} ${z - arenaSize} ${x + arenaSize} ${y + 10} ${z + arenaSize} air`
-      );
-      world.sendMessage(`\u{1F9F9} Cleared the game arena!`);
-    } catch (error) {
-      world.sendMessage(`\u26A0\uFE0F Failed to clear arena: ${error}`);
-    }
-  }
-  // Clear the inventories of all players
-  clearPlayerInventories(players) {
-    players.forEach((player) => {
-      try {
-        const inventory = player.getComponent("inventory");
-        if (inventory && inventory.container) {
-          for (let i = 0; i < inventory.container.size; i++) {
-            inventory.container.setItem(i, void 0);
-          }
-          player.sendMessage(`\u{1F9F9} Your inventory has been cleared!`);
-        } else {
-          player.sendMessage("\u26A0\uFE0F Could not clear inventory. No inventory found.");
-        }
-      } catch (error) {
-        world.sendMessage(`\u26A0\uFE0F Failed to clear inventory for player ${player.name}: ${error}`);
-      }
-    });
-    world.sendMessage("\u{1F9F9} Cleared all players' inventories!");
-  }
-  // Map the game mode string to the GameMode enum
-  getGameModeEnum() {
-    switch (this.gameMode) {
-      case "survival":
-        return GameMode.survival;
-      case "creative":
-        return GameMode.creative;
-      case "adventure":
-        return GameMode.adventure;
-      case "spectator":
-        return GameMode.spectator;
-      default:
-        throw new Error(`Invalid game mode: ${this.gameMode}`);
-    }
-  }
-  // Set world settings for Game (Day/Night cycle, Game Mode, Difficulty)
-  setWorldSettings() {
-    if (this.dayOrNight === "day") {
-      world.getDimension(MinecraftDimensionTypes.overworld).runCommand("time set day");
-      world.getDimension(MinecraftDimensionTypes.overworld).runCommand("gamerule doDaylightCycle true");
-    } else {
-      world.getDimension(MinecraftDimensionTypes.overworld).runCommand("time set night");
-      world.getDimension(MinecraftDimensionTypes.overworld).runCommand("gamerule doDaylightCycle false");
-    }
-    world.getDimension(MinecraftDimensionTypes.overworld).runCommand(`difficulty ${this.difficulty}`);
-  }
-  // Handle game timer countdown
-  startTimer(players) {
-    this.intervalId = system.runInterval(() => {
-      if (this.gameTimer > 0) {
-        this.gameTimer--;
-        players.forEach((player) => {
-          player.onScreenDisplay.setActionBar(`\u23F3 Time Remaining: ${this.gameTimer} seconds`);
-        });
-      } else {
-        this.endGame(players);
-        if (this.intervalId) {
-          system.clearRun(this.intervalId);
-        }
-      }
-    }, 20);
-  }
-  // End the game
-  endGame(players) {
-    world.sendMessage(`\u23F3 Time is up! The game ${this.gameName} is over!`);
-    players.forEach((player) => {
-      player.teleport({ x: 0, y: 65, z: 0 });
-      player.sendMessage(`\u{1F3E0} Returning to the lobby!`);
-    });
-  }
-  // Create a new scoreboard objective
-  createScoreObjective() {
-    try {
-      const objective = world.scoreboard.addObjective("points", "Points");
-      world.sendMessage(`\u2705 Created new scoreboard objective: points`);
-      return objective;
-    } catch (error) {
-      world.sendMessage(`\u26A0\uFE0F Failed to create scoreboard objective: ${error}`);
-      throw error;
-    }
-  }
-  // Setup a scoreboard sidebar
-  // Setup a scoreboard sidebar
-  setupScoreboard() {
-    let scoreObjective = world.scoreboard.getObjective("points");
-    if (!scoreObjective) {
-      scoreObjective = this.createScoreObjective();
-      if (!scoreObjective) {
-        console.error("Failed to create scoreboard objective.");
-        return null;
-      }
-    }
-    world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
-      objective: scoreObjective
-    });
-    return scoreObjective;
-  }
-  // Reset player scores before starting the game
-  resetPlayerScores(players) {
-    players.forEach((player) => {
-      this.updatePlayerScore(player, 0);
-    });
-  }
-  // Update points for a player
-  updatePlayerScore(player, points) {
-    const objective = world.scoreboard.getObjective("points");
-    if (objective) {
-      objective.setScore(player, points);
-    }
-  }
-};
-
-// scripts/Game1.ts
-import {
-  world as world3,
-  system as system2,
-  BlockPermutation as BlockPermutation2,
-  ItemStack
-} from "@minecraft/server";
-
-// scripts/setupInventory.ts
-function setupInventory(player, items) {
-  let inv = player.getComponent("inventory");
-  if (!inv || !inv.container) return;
-  for (const item of items) {
-    inv.container.addItem(item);
-  }
-}
 
 // scripts/createArena.ts
 import { BlockPermutation } from "@minecraft/server";
 
 // scripts/Utilities.ts
-import { world as world2 } from "@minecraft/server";
+import { world } from "@minecraft/server";
 
 // node_modules/@minecraft/vanilla-data/lib/index.js
 var MinecraftBiomeTypes = ((MinecraftBiomeTypes2) => {
@@ -1540,12 +1363,12 @@ var MinecraftCooldownCategoryTypes = ((MinecraftCooldownCategoryTypes2) => {
   MinecraftCooldownCategoryTypes2["WindCharge"] = "minecraft:wind_charge";
   return MinecraftCooldownCategoryTypes2;
 })(MinecraftCooldownCategoryTypes || {});
-var MinecraftDimensionTypes2 = ((MinecraftDimensionTypes22) => {
+var MinecraftDimensionTypes = ((MinecraftDimensionTypes22) => {
   MinecraftDimensionTypes22["Nether"] = "minecraft:nether";
   MinecraftDimensionTypes22["Overworld"] = "minecraft:overworld";
   MinecraftDimensionTypes22["TheEnd"] = "minecraft:the_end";
   return MinecraftDimensionTypes22;
-})(MinecraftDimensionTypes2 || {});
+})(MinecraftDimensionTypes || {});
 var MinecraftEffectTypes = ((MinecraftEffectTypes2) => {
   MinecraftEffectTypes2["Absorption"] = "minecraft:absorption";
   MinecraftEffectTypes2["BadOmen"] = "minecraft:bad_omen";
@@ -3183,7 +3006,7 @@ var MinecraftPotionModifierTypes = ((MinecraftPotionModifierTypes2) => {
 // scripts/Utilities.ts
 var Utilities = class {
   static fillBlock(blockPerm, xFrom, yFrom, zFrom, xTo, yTo, zTo) {
-    const overworld = world2.getDimension(MinecraftDimensionTypes2.Overworld);
+    const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
     for (let i = xFrom; i <= xTo; i++) {
       for (let j = yFrom; j <= yTo; j++) {
         for (let k = zFrom; k <= zTo; k++) {
@@ -3194,7 +3017,7 @@ var Utilities = class {
     }
   }
   static fourWalls(perm, xFrom, yFrom, zFrom, xTo, yTo, zTo) {
-    const overworld = world2.getDimension(MinecraftDimensionTypes2.Overworld);
+    const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
     for (let i = xFrom; i <= xTo; i++) {
       for (let k = yFrom; k <= yTo; k++) {
         const block1 = overworld.getBlock({ x: i, y: k, z: zFrom });
@@ -3241,6 +3064,243 @@ function createArena(dimensions) {
     );
   }
 }
+
+// scripts/arenaUtils.ts
+function setupArena(location, arenaOffset, arenaSize) {
+  createArena({
+    xOffset: arenaOffset.x,
+    yOffset: arenaOffset.y,
+    zOffset: arenaOffset.z,
+    xSize: arenaSize.x,
+    ySize: arenaSize.y,
+    zSize: arenaSize.z
+  });
+}
+
+// scripts/gamesetup.ts
+var GameSetup = class {
+  // Difficulty setting
+  constructor(gameName, gameDescription, timerMinutes, gameMode, dayOrNight, difficulty) {
+    this.gameTimer = 0;
+    this.overallScores = /* @__PURE__ */ new Map();
+    this.gameName = gameName;
+    this.gameDescription = gameDescription;
+    this.gameTimer = timerMinutes * 60;
+    this.gameMode = gameMode;
+    this.dayOrNight = dayOrNight;
+    this.difficulty = difficulty;
+  }
+  // Display game introduction and start timer
+  startGame(players, gameArea, ARENA_VECTOR_OFFSET, ARENA_SIZE) {
+    this.clearObjectives();
+    this.clearArena(gameArea);
+    this.clearPlayerInventories(players);
+    world2.sendMessage(`\u{1F3AE} Welcome to ${this.gameName}!`);
+    world2.sendMessage(`${this.gameDescription}`);
+    world2.sendMessage(`\u23F3 You have ${this.gameTimer / 60} minutes! Good luck!`);
+    this.setWorldSettings();
+    setupArena(gameArea, ARENA_VECTOR_OFFSET, ARENA_SIZE);
+    players.forEach((player) => {
+      player.teleport(gameArea);
+      player.sendMessage(`\u{1F680} Teleporting you to the game area!`);
+      player.setGameMode(this.getGameModeEnum());
+    });
+    this.setupScoreboard();
+    this.resetPlayerScores(players);
+    this.startTimer(players);
+  }
+  // Clear all scoreboard objectives
+  // Clear all scoreboard objectives
+  clearObjectives() {
+    try {
+      const objectives = world2.scoreboard.getObjectives();
+      if (objectives.length === 0) {
+        world2.sendMessage("\u2705 No scoreboard objectives to clear.");
+        return;
+      }
+      objectives.forEach((objective) => {
+        try {
+          world2.scoreboard.removeObjective(objective);
+          world2.sendMessage(`\u{1F9F9} Removed scoreboard objective: ${objective.id}`);
+        } catch (error) {
+          console.warn(`Failed to remove objective ${objective.id}: ${error}`);
+          world2.sendMessage(`\u26A0\uFE0F Error removing objective: ${objective.id}`);
+        }
+      });
+    } catch (error) {
+      console.warn("Error while clearing scoreboard objectives: " + error);
+      world2.sendMessage("\u26A0\uFE0F An error occurred while clearing objectives.");
+    }
+  }
+  // Clear the arena by setting the specified area to air
+  clearArena(gameArea) {
+    const { x, y, z, dimension } = gameArea;
+    const arenaSize = 20;
+    try {
+      dimension.runCommand(
+        `fill ${x - arenaSize} ${y} ${z - arenaSize} ${x + arenaSize} ${y + 10} ${z + arenaSize} air`
+      );
+      world2.sendMessage(`\u{1F9F9} Cleared the game arena!`);
+    } catch (error) {
+      world2.sendMessage(`\u26A0\uFE0F Failed to clear arena: ${error}`);
+    }
+  }
+  // Clear the inventories of all players
+  clearPlayerInventories(players) {
+    players.forEach((player) => {
+      try {
+        const inventory = player.getComponent("inventory");
+        if (inventory && inventory.container) {
+          for (let i = 0; i < inventory.container.size; i++) {
+            inventory.container.setItem(i, void 0);
+          }
+          player.sendMessage(`\u{1F9F9} Your inventory has been cleared!`);
+        } else {
+          player.sendMessage("\u26A0\uFE0F Could not clear inventory. No inventory found.");
+        }
+      } catch (error) {
+        world2.sendMessage(`\u26A0\uFE0F Failed to clear inventory for player ${player.name}: ${error}`);
+      }
+    });
+    world2.sendMessage("\u{1F9F9} Cleared all players' inventories!");
+  }
+  // Map the game mode string to the GameMode enum
+  getGameModeEnum() {
+    switch (this.gameMode) {
+      case "survival":
+        return GameMode.survival;
+      case "creative":
+        return GameMode.creative;
+      case "adventure":
+        return GameMode.adventure;
+      case "spectator":
+        return GameMode.spectator;
+      default:
+        throw new Error(`Invalid game mode: ${this.gameMode}`);
+    }
+  }
+  // Set world settings for Game (Day/Night cycle, Game Mode, Difficulty)
+  setWorldSettings() {
+    if (this.dayOrNight === "day") {
+      world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand("time set day");
+      world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand("gamerule doDaylightCycle true");
+    } else {
+      world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand("time set night");
+      world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand("gamerule doDaylightCycle false");
+    }
+    world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand(`difficulty ${this.difficulty}`);
+  }
+  // Handle game timer countdown
+  startTimer(players) {
+    this.intervalId = system.runInterval(() => {
+      if (this.gameTimer > 0) {
+        this.gameTimer--;
+        players.forEach((player) => {
+          player.onScreenDisplay.setActionBar(`\u23F3 Time Remaining: ${this.gameTimer} seconds`);
+        });
+      } else {
+        this.endGame(players);
+        if (this.intervalId) {
+          system.clearRun(this.intervalId);
+        }
+      }
+    }, 20);
+  }
+  // End the game
+  endGame(players) {
+    world2.sendMessage(`\u23F3 Time is up! The game ${this.gameName} is over!`);
+    players.forEach((player) => {
+      player.teleport({ x: 0, y: 65, z: 0 });
+      player.sendMessage(`\u{1F3E0} Returning to the lobby!`);
+    });
+  }
+  // Create a new scoreboard objective
+  createScoreObjective() {
+    try {
+      const objective = world2.scoreboard.addObjective("points", "Points");
+      world2.sendMessage(`\u2705 Created new scoreboard objective: points`);
+      return objective;
+    } catch (error) {
+      if (error instanceof Error) {
+        world2.sendMessage(`\u26A0\uFE0F Failed to create scoreboard objective: ${error.message}`);
+        console.error(`Error details: ${error.stack}`);
+      } else {
+        world2.sendMessage(`\u26A0\uFE0F Failed to create scoreboard objective: Unknown error`);
+        console.error("Unknown error occurred while creating scoreboard objective.");
+      }
+      throw error;
+    }
+  }
+  // Setup a scoreboard sidebar
+  setupScoreboard() {
+    let scoreObjective = world2.scoreboard.getObjective("points");
+    if (!scoreObjective) {
+      scoreObjective = this.createScoreObjective();
+      if (!scoreObjective) {
+        console.error("Failed to create scoreboard objective.");
+        return null;
+      }
+    }
+    world2.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
+      objective: scoreObjective
+    });
+    return scoreObjective;
+  }
+  // Update points for a player
+  updatePlayerScore(player, points) {
+    const objective = world2.scoreboard.getObjective("points");
+    if (objective) {
+      try {
+        objective.setScore(player, points);
+        console.log(`Updated score for ${player.name}: ${points}`);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(`Failed to update score for ${player.name}: ${error.message}`);
+          console.error(`Stack trace: ${error.stack}`);
+        } else {
+          console.error(`Unknown error occurred while updating score for ${player.name}`);
+        }
+      }
+    } else {
+      console.warn(`Scoreboard objective not found. Unable to update score for ${player.name}`);
+    }
+  }
+  resetPlayerScores(players) {
+    const objective = world2.scoreboard.getObjective("points");
+    if (objective) {
+      players.forEach((player) => {
+        try {
+          objective.setScore(player, 0);
+          console.log(`Reset score for ${player.name}`);
+        } catch (error) {
+          if (error instanceof Error) {
+            console.error(`Failed to reset score for ${player.name}: ${error.message}`);
+            console.error(`Stack trace: ${error.stack}`);
+          } else {
+            console.error(`Unknown error occurred while resetting score for ${player.name}`);
+          }
+        }
+      });
+    } else {
+      console.warn(`Scoreboard objective not found. Unable to reset scores.`);
+    }
+  }
+};
+
+// scripts/Game1.ts
+import { world as world4, system as system3, ItemStack } from "@minecraft/server";
+
+// scripts/setupInventory.ts
+function setupInventory(player, items) {
+  let inv = player.getComponent("inventory");
+  if (!inv || !inv.container) return;
+  for (const item of items) {
+    inv.container.addItem(item);
+  }
+}
+
+// scripts/gameHelpers.ts
+import { world as world3, BlockPermutation as BlockPermutation2 } from "@minecraft/server";
 
 // node_modules/@minecraft/math/lib/general/clamp.js
 function clampNumber(val, min, max) {
@@ -3439,158 +3499,133 @@ var Vector3Utils = class _Vector3Utils {
   }
 };
 
+// scripts/gameHelpers.ts
+function spawnNewBlock(ARENA_VECTOR_OFFSET, ARENA_SIZE, blockType) {
+  const overworld = world3.getDimension("overworld");
+  const x = Math.floor(Math.random() * ARENA_SIZE.x) - ARENA_SIZE.x / 2;
+  const z = Math.floor(Math.random() * ARENA_SIZE.z) - ARENA_SIZE.z / 2;
+  const y = Math.floor(Math.random() * 10) + 1;
+  world3.sendMessage(`Creating new ${blockType} at ${x}, ${y}, ${z}!`);
+  const blockLocation = Vector3Utils.add(ARENA_VECTOR_OFFSET, { x, y, z });
+  const block = overworld.getBlock(blockLocation);
+  const blockPermutation = BlockPermutation2.resolve(blockType);
+  if (block) {
+    block.setPermutation(blockPermutation);
+  }
+}
+function spawnMobs(ARENA_VECTOR_OFFSET, ARENA_SIZE, mobType) {
+  const overworld = world3.getDimension("overworld");
+  const count = Math.floor(Math.random() * 2) + 1;
+  for (let j = 0; j < count; j++) {
+    const x = Math.floor(Math.random() * (ARENA_SIZE.x - 2)) - ARENA_SIZE.x / 2;
+    const z = Math.floor(Math.random() * (ARENA_SIZE.z - 2)) - ARENA_SIZE.z / 2;
+    if (mobType) {
+      overworld.spawnEntity(mobType, Vector3Utils.add(ARENA_VECTOR_OFFSET, { x, y: 1, z }));
+    } else {
+      console.warn(`Invalid mob type: ${mobType}`);
+    }
+  }
+}
+function placeRandomBlockItems(ARENA_VECTOR_OFFSET, ARENA_SIZE, blockType = "minecraft:leaves") {
+  const overworld = world3.getDimension("overworld");
+  for (let i = 0; i < 10; i++) {
+    const x = Math.floor(Math.random() * (ARENA_SIZE.x - 1)) - (ARENA_SIZE.x / 2 - 1);
+    const y = Math.floor(Math.random() * 10);
+    const z = Math.floor(Math.random() * (ARENA_SIZE.z - 1)) - (ARENA_SIZE.z / 2 - 1);
+    overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x, y, z }))?.setPermutation(BlockPermutation2.resolve(blockType));
+  }
+}
+
 // scripts/Game1.ts
+var gameConfig = {
+  name: "Mine the Diamonds!",
+  description: "Mine as many diamonds as possible to earn points!",
+  timerMinutes: 1,
+  gameMode: "survival",
+  dayOrNight: "day",
+  difficulty: "easy",
+  maxPlayers: 10,
+  minPlayers: 2,
+  arenaSize: { x: 30, y: 10, z: 30 },
+  // Arena Size Centralized
+  arenaoffset: { x: 0, y: -60, z: 0 }
+};
 function Game1(log, location) {
-  const overworld = world3.getDimension(MinecraftDimensionTypes2.Overworld);
-  const players = world3.getAllPlayers();
-  const gameName = "Mine the Diamonds!";
-  const gameDescription = "Mine as many diamonds as possible to earn points!";
-  const timerMinutes = 15;
-  const gameMode = "survival";
-  const dayOrNight = "day";
-  const difficulty = "easy";
-  const maxPlayers = 10;
-  const minPlayers = 2;
+  const overworld = world4.getDimension("overworld");
+  const players = world4.getAllPlayers();
   const playerScores = /* @__PURE__ */ new Map();
-  const gameArea = {
-    x: location.x,
-    y: location.y,
-    z: location.z,
-    dimension: location.dimension
-    // Pass the dimension here
-  };
   const gameSetup = new GameSetup(
-    gameName,
-    gameDescription,
-    timerMinutes,
-    gameMode,
-    // Passing the game mode
-    dayOrNight,
-    // Passing the time of day (day or night)
-    difficulty
-    // Passing the difficulty level
+    gameConfig.name,
+    gameConfig.description,
+    gameConfig.timerMinutes,
+    gameConfig.gameMode,
+    gameConfig.dayOrNight,
+    gameConfig.difficulty
   );
-  gameSetup.startGame(players, gameArea);
-  const START_TICK = 100;
-  const ARENA_X_SIZE = 30;
-  const ARENA_Z_SIZE = 30;
-  const ARENA_X_OFFSET = 0;
-  const ARENA_Y_OFFSET = -60;
-  const ARENA_Z_OFFSET = 0;
-  const ARENA_VECTOR_OFFSET = { x: ARENA_X_OFFSET, y: ARENA_Y_OFFSET, z: ARENA_Z_OFFSET };
+  gameSetup.startGame(players, location, gameConfig.arenaoffset, gameConfig.arenaSize);
+  const scoreObjective = gameSetup.setupScoreboard();
+  gameSetup.resetPlayerScores(players);
   const startingInventory = [
-    new ItemStack(MinecraftItemTypes.DiamondSword),
+    new ItemStack(MinecraftItemTypes.DiamondPickaxe),
     new ItemStack(MinecraftItemTypes.Dirt, 64)
+    // Changed from DiamondSword to DiamondPickaxe
   ];
-  const arenaDimensions = {
-    xOffset: ARENA_X_OFFSET,
-    yOffset: ARENA_Y_OFFSET,
-    zOffset: ARENA_Z_OFFSET,
-    xSize: ARENA_X_SIZE,
-    ySize: 10,
-    zSize: ARENA_Z_SIZE
-  };
+  players.forEach((player) => setupInventory(player, startingInventory));
   let curTick = 0;
   let score = 0;
-  let cottaX = 0;
-  let cottaZ = 0;
-  let spawnCountdown = 1;
-  function MinetheDiamonds() {
-    for (const player of players) {
-      playerScores.set(player.name, 0);
-      setupInventory(player, startingInventory);
-      player.teleport(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: -3, y: 0, z: -3 }), {
-        dimension: overworld,
-        rotation: { x: 0, y: 0 }
-      });
-    }
-    world3.sendMessage("BREAK THE DIAMOND BLOCKS!");
-    createArena(arenaDimensions);
-  }
-  function gameTick() {
-    try {
-      curTick++;
-      if (curTick === START_TICK) {
-        MinetheDiamonds();
-      }
-      if (curTick > START_TICK && curTick % 20 === 0) {
-        if (spawnCountdown > 0) {
-          spawnCountdown--;
-          if (spawnCountdown <= 0) {
-            spawnNewBlock();
-          }
-        } else {
-          checkForLessBlocks();
-        }
-      }
-      const spawnInterval = Math.ceil(200 / ((score + 1) / 3));
-      if (curTick > START_TICK && curTick % spawnInterval === 0) {
-        spawnMobs();
-      }
-      if (curTick > START_TICK && curTick % 29 === 0) {
-        addBlockItemsRandomly();
-      }
-    } catch (e) {
-      console.warn("Tick error: " + e);
-    }
-    system2.run(gameTick);
-  }
-  function spawnNewBlock() {
-    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
-    cottaX = Math.floor(Math.random() * (ARENA_X_SIZE - 1)) - (ARENA_X_SIZE / 2 - 1);
-    cottaZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 1)) - (ARENA_Z_SIZE / 2 - 1);
-    world3.sendMessage("Creating new diamond ore!");
-    let block = overworld2.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
-    if (block) {
-      block.setPermutation(BlockPermutation2.resolve(MinecraftBlockTypes.DiamondOre));
-    }
-  }
-  function checkForLessBlocks() {
-    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
-    let block = overworld2.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: cottaX, y: 1, z: cottaZ }));
-    if (block && !block.permutation.matches(MinecraftBlockTypes.DiamondOre)) {
-      const players2 = world3.getAllPlayers();
-      for (const player of players2) {
+  const blockCountThreshold = 100;
+  let missingDiamondBlocks = 0;
+  let lastOreDestroyed = false;
+  world4.beforeEvents.playerBreakBlock.subscribe((eventData) => {
+    if (eventData.block.typeId === "minecraft:diamond_ore") {
+      console.warn("Warning: Diamond ore block about to be broken!");
+      lastOreDestroyed = true;
+      missingDiamondBlocks++;
+      console.warn(`Missing diamond blocks: ${missingDiamondBlocks}`);
+      players.forEach((player) => {
         const currentScore = playerScores.get(player.name) || 0;
         const newScore = currentScore + 1;
         playerScores.set(player.name, newScore);
-        const scoreObjective = world3.scoreboard.getObjective("points");
-        if (scoreObjective) {
-          scoreObjective.setScore(player, newScore);
+        console.warn(`Updated score for ${player.name}: ${newScore}`);
+        gameSetup.updatePlayerScore(player, newScore);
+      });
+      world4.sendMessage(`Diamond ore block destroyed. Missing blocks: ${missingDiamondBlocks}`);
+    }
+  });
+  function startGameTick() {
+    function gameTick() {
+      try {
+        curTick++;
+        if (curTick === 100) {
+          world4.sendMessage("BREAK THE DIAMOND BLOCKS!");
+          spawnNewBlock(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:diamond_ore");
         }
+        if (curTick > 100 && curTick % 20 === 0) {
+          if (lastOreDestroyed && missingDiamondBlocks >= blockCountThreshold) {
+            spawnNewBlock(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:diamond_ore");
+            missingDiamondBlocks = 0;
+            lastOreDestroyed = false;
+          }
+        }
+        const spawnInterval = Math.ceil(200 / ((score + 1) / 3));
+        if (curTick > 100 && curTick % spawnInterval === 0) {
+          spawnMobs(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:zombie");
+        }
+        if (curTick > 100 && curTick % 29 === 0) {
+          placeRandomBlockItems(gameConfig.arenaoffset, gameConfig.arenaSize, "minecraft:leaves");
+        }
+      } catch (e) {
+        console.warn("Tick error: " + e);
       }
-      world3.sendMessage("You mined the Diamond! Creating new ore in a few seconds.");
-      cottaX = -1;
-      cottaZ = -1;
-      spawnCountdown = 2;
+      system3.run(gameTick);
     }
+    system3.run(gameTick);
   }
-  function spawnMobs() {
-    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
-    let spawnMobCount = Math.floor(Math.random() * 2) + 1;
-    for (let j = 0; j < spawnMobCount; j++) {
-      let zombieX = Math.floor(Math.random() * (ARENA_X_SIZE - 2)) - ARENA_X_SIZE / 2;
-      let zombieZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 2)) - ARENA_Z_SIZE / 2;
-      overworld2.spawnEntity(
-        MinecraftEntityTypes.Zombie,
-        Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: zombieX, y: 1, z: zombieZ })
-      );
-    }
-  }
-  function addBlockItemsRandomly() {
-    const overworld2 = world3.getDimension(MinecraftDimensionTypes2.Overworld);
-    for (let i = 0; i < 10; i++) {
-      const leafX = Math.floor(Math.random() * (ARENA_X_SIZE - 1)) - (ARENA_X_SIZE / 2 - 1);
-      const leafY = Math.floor(Math.random() * 10);
-      const leafZ = Math.floor(Math.random() * (ARENA_Z_SIZE - 1)) - (ARENA_Z_SIZE / 2 - 1);
-      overworld2.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x: leafX, y: leafY, z: leafZ }))?.setPermutation(BlockPermutation2.resolve("minecraft:leaves"));
-    }
-  }
-  system2.run(gameTick);
+  startGameTick();
 }
 
 // scripts/ScriptManager.ts
-import { world as world4, system as system3 } from "@minecraft/server";
+import { world as world5, system as system4 } from "@minecraft/server";
 var ScriptManager = class {
   constructor() {
     this.tickCount = 0;
@@ -3598,14 +3633,14 @@ var ScriptManager = class {
     this._availableFuncs = {};
     this.gamePlayLogger = this.gamePlayLogger.bind(this);
     this.worldTick = this.worldTick.bind(this);
-    system3.afterEvents.scriptEventReceive.subscribe(this.newScriptEvent.bind(this));
-    system3.run(this.worldTick);
+    system4.afterEvents.scriptEventReceive.subscribe(this.newScriptEvent.bind(this));
+    system4.run(this.worldTick);
   }
   gamePlayLogger(message, status) {
     if (status !== void 0) {
       message = status > 0 ? `SUCCESS: ${message}` : `FAIL: ${message}`;
     }
-    world4.sendMessage(message);
+    world5.sendMessage(message);
     console.warn(message);
   }
   newScriptEvent(scriptEvent) {
@@ -3646,15 +3681,15 @@ var ScriptManager = class {
         try {
           funcSet.func(this.gamePlayLogger, funcSet.location);
         } catch (e) {
-          world4.sendMessage(`Could not run code function. Error: ${e.toString()}`);
+          world5.sendMessage(`Could not run code function. Error: ${e.toString()}`);
         }
       }
     }
     if (this.tickCount === 200) {
-      world4.sendMessage("Type '/scriptevent run:<game_name>' in chat to run a specific game.");
+      world5.sendMessage("Type '/scriptevent run:<game_name>' in chat to run a specific game.");
     }
     this.tickCount++;
-    system3.run(this.worldTick);
+    system4.run(this.worldTick);
   }
   registerCode(sampleSet) {
     for (const sampleKey in sampleSet) {
