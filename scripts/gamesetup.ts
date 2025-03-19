@@ -57,9 +57,15 @@ export class GameSetup {
 
     setupArena(gameArea, ARENA_VECTOR_OFFSET, ARENA_SIZE);
 
-    // Teleport players to the game area and set the specified game mode
+    const arenaCenter: Vector3 = {
+      x: ARENA_VECTOR_OFFSET.x + ARENA_SIZE.x / 2,
+      y: ARENA_VECTOR_OFFSET.y + 1, // Set slightly above the ground to prevent spawning inside blocks
+      z: ARENA_VECTOR_OFFSET.z + ARENA_SIZE.z / 2,
+    };
+
+    // Teleport players to the center of the arena
     players.forEach((player) => {
-      player.teleport(gameArea);
+      player.teleport(arenaCenter, gameArea.dimension);
       player.sendMessage(`🚀 Teleporting you to the game area!`);
       player.setGameMode(this.getGameModeEnum()); // Use the helper function to get the correct GameMode value
     });
@@ -195,8 +201,9 @@ export class GameSetup {
     world.sendMessage(`⏳ Time is up! The game ${this.gameName} is over!`);
     players.forEach((player) => {
       // Teleport players back to lobby
-      player.teleport({ x: 0, y: 65, z: 0 }); // Adjust this to your lobby coordinates
+      player.teleport({ x: 20, y: -60, z: -6 }); // Adjust this to your lobby coordinates
       player.sendMessage(`🏠 Returning to the lobby!`);
+      player.setGameMode(GameMode.creative); // Set back to default game mode
     });
   }
 

@@ -3210,8 +3210,9 @@ var GameSetup = class {
   endGame(players) {
     world2.sendMessage(`\u23F3 Time is up! The game ${this.gameName} is over!`);
     players.forEach((player) => {
-      player.teleport({ x: 0, y: 65, z: 0 });
+      player.teleport({ x: 20, y: -60, z: -6 });
       player.sendMessage(`\u{1F3E0} Returning to the lobby!`);
+      player.setGameMode(GameMode.creative);
     });
   }
   // Create a new scoreboard objective
