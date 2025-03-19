@@ -33,5 +33,6 @@
         "zoglin"
     ],
     "editor.tabSize": 2,
-    "eslint.experimental.useFlatConfig": true
+    "eslint.experimental.useFlatConfig": true,
+    "git.autofetch": true
 }

@@ -7,11 +7,11 @@ import {
   MinecraftDimensionTypes as MinecraftDimensionTypes2
 } from "@minecraft/server";
 
-// scripts/createArena.ts
-import { BlockPermutation } from "@minecraft/server";
-
-// scripts/Utilities.ts
-import { world } from "@minecraft/server";
+// scripts/arenaUtils.ts
+import {
+  world,
+  BlockPermutation
+} from "@minecraft/server";
 
 // node_modules/@minecraft/vanilla-data/lib/index.js
 var MinecraftBiomeTypes = ((MinecraftBiomeTypes2) => {
@@ -3003,46 +3003,32 @@ var MinecraftPotionModifierTypes = ((MinecraftPotionModifierTypes2) => {
   return MinecraftPotionModifierTypes2;
 })(MinecraftPotionModifierTypes || {});
 
-// scripts/Utilities.ts
-var Utilities = class {
-  static fillBlock(blockPerm, xFrom, yFrom, zFrom, xTo, yTo, zTo) {
-    const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
-    for (let i = xFrom; i <= xTo; i++) {
-      for (let j = yFrom; j <= yTo; j++) {
-        for (let k = zFrom; k <= zTo; k++) {
-          const block = overworld.getBlock({ x: i, y: j, z: k });
-          block?.setPermutation(blockPerm);
-        }
-      }
-    }
+// scripts/arenaUtils.ts
+function setupArena(arenaLocation2, arenaSize2) {
+  const dimension = world.getDimension(MinecraftDimensionTypes.Overworld);
+  const testBlock = dimension.getBlock({
+    x: arenaLocation2.x,
+    y: arenaLocation2.y,
+    z: arenaLocation2.z
+  });
+  if (!testBlock) {
+    console.warn("\u26A0\uFE0F Arena location is in an unloaded chunk. Ensure a player is nearby.");
+    return;
   }
-  static fourWalls(perm, xFrom, yFrom, zFrom, xTo, yTo, zTo) {
-    const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
-    for (let i = xFrom; i <= xTo; i++) {
-      for (let k = yFrom; k <= yTo; k++) {
-        const block1 = overworld.getBlock({ x: i, y: k, z: zFrom });
-        block1?.setPermutation(perm);
-        const block2 = overworld.getBlock({ x: i, y: k, z: zTo });
-        block2?.setPermutation(perm);
-      }
-    }
-    for (let j = zFrom + 1; j < zTo; j++) {
-      for (let k = yFrom; k <= yTo; k++) {
-        const block3 = overworld.getBlock({ x: xFrom, y: k, z: j });
-        block3?.setPermutation(perm);
-        const block4 = overworld.getBlock({ x: xTo, y: k, z: j });
-        block4?.setPermutation(perm);
-      }
-    }
-  }
-};
-
-// scripts/createArena.ts
+  createArena({
+    xOffset: arenaLocation2.x,
+    yOffset: arenaLocation2.y,
+    zOffset: arenaLocation2.z,
+    xSize: arenaSize2.x,
+    ySize: arenaSize2.y,
+    zSize: arenaSize2.z
+  });
+}
 function createArena(dimensions) {
-  let airBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Air);
-  let cobblestoneBlockPerm = BlockPermutation.resolve(MinecraftBlockTypes.Cobblestone);
+  let airBlockPerm = BlockPermutation.resolve("minecraft:air");
+  let cobblestoneBlockPerm = BlockPermutation.resolve("minecraft:cobblestone");
   if (airBlockPerm) {
-    Utilities.fillBlock(
+    fillBlock(
       airBlockPerm,
       dimensions.xOffset - dimensions.xSize / 2 + 1,
       dimensions.yOffset,
@@ -3053,7 +3039,7 @@ function createArena(dimensions) {
     );
   }
   if (cobblestoneBlockPerm) {
-    Utilities.fourWalls(
+    fourWalls(
       cobblestoneBlockPerm,
       dimensions.xOffset - dimensions.xSize / 2,
       dimensions.yOffset,
@@ -3063,143 +3049,129 @@ function createArena(dimensions) {
       dimensions.zOffset + dimensions.zSize / 2
     );
   }
+  console.warn(`Creating arena at offset (${dimensions.xOffset}, ${dimensions.yOffset}, ${dimensions.zOffset}) with size (${dimensions.xSize}, ${dimensions.ySize}, ${dimensions.zSize})`);
 }
-
-// scripts/arenaUtils.ts
-function setupArena(arenaOffset, arenaSize) {
-  createArena({
-    xOffset: arenaOffset.x,
-    yOffset: arenaOffset.y,
-    zOffset: arenaOffset.z,
-    xSize: arenaSize.x,
-    ySize: arenaSize.y,
-    zSize: arenaSize.z
+function clearArena(arenaLowerCorner2, arenaSize2) {
+  const { x, y, z, dimension } = arenaLowerCorner2;
+  if (arenaSize2.x <= 0 || arenaSize2.y <= 0 || arenaSize2.z <= 0) {
+    world.sendMessage("\u26A0\uFE0F Invalid arena size. Please check dimensions.");
+    return;
+  }
+  try {
+    const killCommand = `kill @e[type=!player,x=${x},y=${y},z=${z},dx=${arenaSize2.x},dy=${arenaSize2.y},dz=${arenaSize2.z}]`;
+    dimension.runCommand(killCommand);
+    const fillCommand = `fill ${x} ${y} ${z} ${x + arenaSize2.x} ${y + arenaSize2.y} ${z + arenaSize2.z} air`;
+    dimension.runCommand(fillCommand);
+    world.sendMessage("\u{1F9F9} Cleared the game arena and removed all entities!");
+  } catch (error) {
+    world.sendMessage(`\u26A0\uFE0F Failed to execute 'clearArena': ${error}`);
+  }
+}
+function teleportPlayersToArena(players2, arenaCenter2, dimension) {
+  players2.forEach((player) => {
+    console.warn(
+      `Teleporting ${player.name} to: x=${arenaCenter2.x}, y=${arenaCenter2.y}, z=${arenaCenter2.z}`
+    );
+    player.teleport(arenaCenter2, dimension);
+    player.sendMessage("\u{1F680} Teleporting you to the game area!");
   });
+}
+function fillBlock(blockPerm, xFrom, yFrom, zFrom, xTo, yTo, zTo) {
+  const overworld2 = world.getDimension(MinecraftDimensionTypes.Overworld);
+  for (let i = xFrom; i <= xTo; i++) {
+    for (let j = yFrom; j <= yTo; j++) {
+      for (let k = zFrom; k <= zTo; k++) {
+        const block = overworld2.getBlock({ x: i, y: j, z: k });
+        block?.setPermutation(blockPerm);
+      }
+    }
+  }
+}
+function fourWalls(perm, xFrom, yFrom, zFrom, xTo, yTo, zTo) {
+  const overworld2 = world.getDimension(MinecraftDimensionTypes.Overworld);
+  for (let i = xFrom; i <= xTo; i++) {
+    for (let k = yFrom; k <= yTo; k++) {
+      const block1 = overworld2.getBlock({ x: i, y: k, z: zFrom });
+      block1?.setPermutation(perm);
+      const block2 = overworld2.getBlock({ x: i, y: k, z: zTo });
+      block2?.setPermutation(perm);
+    }
+  }
+  for (let j = zFrom + 1; j < zTo; j++) {
+    for (let k = yFrom; k <= yTo; k++) {
+      const block3 = overworld2.getBlock({ x: xFrom, y: k, z: j });
+      block3?.setPermutation(perm);
+      const block4 = overworld2.getBlock({ x: xTo, y: k, z: j });
+      block4?.setPermutation(perm);
+    }
+  }
+}
+function clearChunk(x, z) {
+  const dimension = world.getDimension(MinecraftDimensionTypes.Overworld);
+  const chunkXStart = Math.floor(x / 16) * 16;
+  const chunkZStart = Math.floor(z / 16) * 16;
+  const yStart = -64;
+  const yEnd = 320;
+  try {
+    dimension.runCommand(
+      `fill ${chunkXStart} ${yStart} ${chunkZStart} ${chunkXStart + 15} ${yEnd} ${chunkZStart + 15} air`
+    );
+    console.warn(
+      `\u2714\uFE0F Cleared chunk at (${chunkXStart}, ${yStart}, ${chunkZStart})`
+    );
+  } catch (error) {
+    console.error(`\u26A0\uFE0F Failed to clear chunk: ${error}`);
+  }
 }
 
 // scripts/gamesetup.ts
 var GameSetup = class {
-  // Difficulty setting
-  constructor(gameName, gameDescription, timerMinutes, gameMode, dayOrNight, difficulty) {
+  constructor(gameName, gameDescription, timerMinutes, gameMode, dayOrNight, difficulty, lobbyLocation2, arenaLocation2, arenaSize2, arenaCenter2, arenaLowerCorner2) {
     this.gameTimer = 0;
     if (timerMinutes <= 0) throw new Error("Timer must be greater than 0.");
-    if (!["day", "night"].includes(dayOrNight))
-      throw new Error("Invalid dayOrNight value.");
-    if (!["survival", "creative", "adventure", "spectator"].includes(gameMode))
-      throw new Error("Invalid gameMode value.");
-    if (!["peaceful", "easy", "normal", "hard"].includes(difficulty))
-      throw new Error("Invalid difficulty value.");
     this.gameName = gameName;
     this.gameDescription = gameDescription;
     this.gameTimer = timerMinutes * 60;
     this.gameMode = gameMode;
     this.dayOrNight = dayOrNight;
     this.difficulty = difficulty;
+    this.lobbyLocation = lobbyLocation2;
+    this.arenaLocation = arenaLocation2;
+    this.arenaSize = arenaSize2;
+    this.arenaCenter = arenaCenter2;
+    this.arenaLowerCorner = arenaLowerCorner2;
   }
-  /**
-   * Display game introduction, initialize the arena and start the game timer.
-   *
-   * @param players The players participating in the game.
-   * @param arenaLowerCorner The lower-corner (starting coordinate) of the arena.
-   *                           (Must include the correct dimension.)
-   * @param arenaSize Dimensions of the arena ({ x, y, z }).
-   */
-  startGame(players, arenaOffset, arenaLowerCorner, arenaSize) {
-    this.initializeGame(players, arenaOffset, arenaLowerCorner, arenaSize);
-    this.startTimer(players);
+  startGame(players2) {
+    this.initializeGame(players2);
+    this.startTimer(players2);
   }
-  /**
-   * Initialize arena and game settings:
-   * – Clear objectives, arena area, and player inventories.
-   * – Set world settings.
-   * – Set up arena boundaries.
-   * – Teleport players to the arena’s center.
-   * – Set up the scoreboard.
-   */
-  initializeGame(players, arenaOffset, arenaLowerCorner, arenaSize) {
+  initializeGame(players2) {
     this.clearObjectives();
-    this.clearArena(arenaLowerCorner, arenaSize);
-    this.clearPlayerInventories(players);
+    clearArena(this.arenaLowerCorner, this.arenaSize);
+    clearChunk(this.arenaLocation.x, this.arenaLocation.z);
+    this.clearPlayerInventories(players2);
     world2.sendMessage(`\u{1F3AE} Welcome to ${this.gameName}!`);
     world2.sendMessage(`${this.gameDescription}`);
     world2.sendMessage(`\u23F3 You have ${this.gameTimer / 60} minutes! Good luck!`);
     this.setWorldSettings();
-    setupArena(arenaOffset, arenaSize);
-    const arenaCenter = this.getArenaCenter(arenaLowerCorner, arenaSize);
-    console.warn(`arenaLowerCorner: ${JSON.stringify(arenaLowerCorner)}`);
-    console.warn(`Arena Size: ${JSON.stringify(arenaSize)}`);
-    console.warn(`Calculated Arena Center: ${JSON.stringify(arenaCenter)}`);
-    this.teleportPlayersToArena(players, arenaCenter, arenaLowerCorner.dimension);
+    setupArena(this.arenaLocation, this.arenaSize);
+    teleportPlayersToArena(players2, this.arenaCenter, this.arenaLowerCorner.dimension);
     const objective = this.setupScoreboard();
-    if (objective) this.resetPlayerScores(players);
+    if (objective) this.resetPlayerScores(players2);
   }
-  /**
-   * Calculate the arena center based on the arena's lower-corner.
-   * (Adds half of the arena dimensions; Y gets an offset of +1 for ground level.)
-   */
-  getArenaCenter(arenaOffset, arenaSize) {
-    return {
-      x: arenaOffset.x + arenaSize.x / 2 - 5,
-      y: arenaOffset.y,
-      // Example: Increase offset if players spawn underground
-      z: arenaOffset.z + arenaSize.z / 2 - 5
-    };
-  }
-  /**
-   * Teleport all players to the arena center.
-   */
-  teleportPlayersToArena(players, arenaCenter, dimension) {
-    players.forEach((player) => {
-      console.warn(
-        `Teleporting ${player.name} to: x=${arenaCenter.x}, y=${arenaCenter.y}, z=${arenaCenter.z}`
-      );
-      player.teleport(arenaCenter, dimension);
-      player.sendMessage("\u{1F680} Teleporting you to the game area!");
-      player.setGameMode(this.getGameModeEnum());
-    });
-  }
-  /**
-   * Clear all scoreboard objectives.
-   */
   clearObjectives() {
     let scoreObjective = world2.scoreboard.getObjective("score");
     if (scoreObjective) {
       world2.scoreboard.removeObjective(scoreObjective);
       try {
         world2.scoreboard.clearObjectiveAtDisplaySlot(DisplaySlotId.Sidebar);
-        world2.sendMessage("\u{1F9F9} Removed scoreboard display from sidebar.");
       } catch (error) {
         console.warn("\u26A0\uFE0F Error removing scoreboard display: " + error);
       }
     }
   }
-  /**
-   * Clear the arena by removing all non-player entities and filling the arena area with air.
-   *
-   * Previously, coordinates were computed as center minus half size.
-   * In this revision we assume arenaLowerCorner is the starting coordinate.
-   */
-  clearArena(arenaLowerCorner, arenaSize) {
-    const { x, y, z, dimension } = arenaLowerCorner;
-    if (arenaSize.x <= 0 || arenaSize.y <= 0 || arenaSize.z <= 0) {
-      world2.sendMessage("\u26A0\uFE0F Invalid arena size. Please check dimensions.");
-      return;
-    }
-    try {
-      const killCommand = `kill @e[type=!player,x=${x},y=${y},z=${z},dx=${arenaSize.x},dy=${arenaSize.y},dz=${arenaSize.z}]`;
-      dimension.runCommand(killCommand);
-      const fillCommand = `fill ${x} ${y} ${z} ${x + arenaSize.x} ${y + arenaSize.y} ${z + arenaSize.z} air`;
-      dimension.runCommand(fillCommand);
-      world2.sendMessage("\u{1F9F9} Cleared the game arena and removed all entities!");
-    } catch (error) {
-      world2.sendMessage(`\u26A0\uFE0F Failed to execute 'clearArena': ${error}`);
-    }
-  }
-  /**
-   * Clear the inventories of all players.
-   */
-  clearPlayerInventories(players) {
-    players.forEach((player) => {
+  clearPlayerInventories(players2) {
+    players2.forEach((player) => {
       try {
         const inventory = player.getComponent(
           "inventory"
@@ -3208,154 +3180,89 @@ var GameSetup = class {
           for (let i = 0; i < inventory.container.size; i++) {
             inventory.container.setItem(i, void 0);
           }
-          player.sendMessage(`\u{1F9F9} Your inventory has been cleared!`);
-        } else {
-          player.sendMessage("\u26A0\uFE0F Could not clear inventory. No inventory found.");
         }
       } catch (error) {
-        world2.sendMessage(
-          `\u26A0\uFE0F Failed to clear inventory for player ${player.name}: ${error}`
-        );
+        console.warn(`\u26A0\uFE0F Failed to clear inventory for player ${player.name}: ${error}`);
       }
     });
-    world2.sendMessage("\u{1F9F9} Cleared all players' inventories!");
   }
-  /**
-   * Map the game mode string to the corresponding GameMode enum.
-   */
-  getGameModeEnum() {
-    switch (this.gameMode) {
-      case "survival":
-        return GameMode.survival;
-      case "creative":
-        return GameMode.creative;
-      case "adventure":
-        return GameMode.adventure;
-      case "spectator":
-        return GameMode.spectator;
-      default:
-        throw new Error(`Invalid game mode: ${this.gameMode}`);
-    }
-  }
-  /**
-   * Set world settings including time of day, daylight cycle, and difficulty.
-   */
   setWorldSettings() {
     try {
-      const timeSettings = {
-        day: 6e3,
-        night: 18e3
-      };
-      if (timeSettings[this.dayOrNight] !== void 0) {
+      const timeSettings = { day: 6e3, night: 18e3 };
+      if (Object.keys(timeSettings).includes(this.dayOrNight)) {
         world2.setTimeOfDay(timeSettings[this.dayOrNight]);
-        const daylightCycle = this.dayOrNight === "day" ? "true" : "false";
-        world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand(`gamerule doDaylightCycle ${daylightCycle}`);
+        world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand(`gamerule doDaylightCycle ${this.dayOrNight === "day" ? "true" : "false"}`);
       } else {
-        console.error(`Invalid value for dayOrNight: ${this.dayOrNight}`);
+        console.warn(`Invalid dayOrNight value: "${this.dayOrNight}". Must be "day" or "night".`);
       }
     } catch (error) {
-      console.error("Error occurred while setting world settings:", error);
+      console.error("Error setting world settings:", error);
     }
     world2.getDimension(MinecraftDimensionTypes2.overworld).runCommand(`difficulty ${this.difficulty}`);
   }
-  /**
-   * Handle the game timer countdown and update players' on-screen action bars.
-   */
-  startTimer(players) {
+  startTimer(players2) {
     this.intervalId = system.runInterval(() => {
       if (this.gameTimer > 0) {
         this.gameTimer--;
-        players.forEach((player) => {
-          player.onScreenDisplay.setActionBar(
-            `\u23F3 Time Remaining: ${this.gameTimer} seconds`
-          );
+        players2.forEach((player) => {
+          player.onScreenDisplay.setActionBar(`\u23F3 Time Remaining: ${this.gameTimer} seconds`);
         });
       } else {
-        this.endGame(players);
+        this.endGame(players2);
         if (this.intervalId) {
           system.clearRun(this.intervalId);
         }
       }
     }, 20);
   }
-  /**
-   * End the game by sending a message, teleporting players back to the lobby, and resetting their game mode.
-   */
-  endGame(players) {
+  endGame(players2) {
     world2.sendMessage(`\u23F3 Time is up! The game ${this.gameName} is over!`);
-    players.forEach((player) => {
-      player.teleport(
-        { x: 20, y: -60, z: -6 },
-        { dimension: world2.getDimension(MinecraftDimensionTypes2.overworld) }
-      );
-      player.sendMessage(`\u{1F3E0} Returning to the lobby!`);
+    players2.forEach((player) => {
+      player.teleport(this.lobbyLocation, { dimension: world2.getDimension(MinecraftDimensionTypes2.overworld) });
       player.setGameMode(GameMode.creative);
     });
   }
-  /**
-   * Setup a scoreboard and display it in the sidebar.
-   */
   setupScoreboard() {
     try {
       let scoreObjective = world2.scoreboard.getObjective("score");
-      world2.sendMessage("Setting Up Scoreboard");
       if (!scoreObjective) {
         scoreObjective = world2.scoreboard.addObjective("score", "Score");
       }
-      world2.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
-        objective: scoreObjective
-      });
+      world2.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, { objective: scoreObjective });
       return scoreObjective;
     } catch (error) {
       console.error("\u274C Failed to set up the scoreboard:", error);
       return null;
     }
   }
-  /**
-   * Update the scoreboard points for a specific player.
-   */
   updatePlayerScore(player, points) {
     try {
-      if (!player || !player.name) {
-        throw new Error("Invalid player or player name.");
-      }
-      player.runCommandAsync(
-        `scoreboard players set "${player.name}" score ${points}`
-      );
-      console.log(`\u2705 Updated score for ${player.name}: ${points}`);
+      if (!player || !player.name) throw new Error("Invalid player or player name.");
+      player.runCommandAsync(`scoreboard players set "${player.name}" score ${points}`);
     } catch (error) {
       console.error(`\u274C Failed to update score for ${player.name}:`, error);
     }
   }
-  /**
-   * Reset scoreboard points for all players.
-   */
-  resetPlayerScores(players) {
-    if (!players || players.length === 0) {
-      console.warn("No players provided for score reset.");
-      return;
-    }
-    players.forEach((player) => {
-      try {
-        player.runCommandAsync(
-          `scoreboard players set "${player.name}" score 0`
-        );
-        console.log(`\u2705 Reset score for ${player.name}`);
-      } catch (error) {
-        console.error(
-          `\u274C Failed to reset score for player ${player?.name || "unknown"}:`,
-          error
-        );
+  resetPlayerScores(players2) {
+    try {
+      let scoreObjective = world2.scoreboard.getObjective("score");
+      if (scoreObjective) {
+        players2.forEach((player) => {
+          player.runCommandAsync(`scoreboard players set "${player.name}" score 0`);
+        });
       }
-    });
+    } catch (error) {
+      console.error("\u274C Failed to reset player scores:", error);
+    }
   }
 };
 
 // scripts/Game1.ts
 import {
   world as world4,
-  system as system3,
-  ItemStack
+  system as system2,
+  ItemStack,
+  GameMode as GameMode2
 } from "@minecraft/server";
 
 // scripts/setupInventory.ts
@@ -3369,274 +3276,93 @@ function setupInventory(player, items) {
 
 // scripts/gameHelpers.ts
 import { world as world3, BlockPermutation as BlockPermutation2 } from "@minecraft/server";
-
-// node_modules/@minecraft/math/lib/general/clamp.js
-function clampNumber(val, min, max) {
-  return Math.min(Math.max(val, min), max);
-}
-
-// node_modules/@minecraft/math/lib/vector3/coreHelpers.js
-var Vector3Utils = class _Vector3Utils {
-  /**
-   * equals
-   *
-   * Check the equality of two vectors
-   */
-  static equals(v1, v2) {
-    return v1.x === v2.x && v1.y === v2.y && v1.z === v2.z;
-  }
-  /**
-   * add
-   *
-   * Add two vectors to produce a new vector
-   */
-  static add(v1, v2) {
-    return { x: v1.x + (v2.x ?? 0), y: v1.y + (v2.y ?? 0), z: v1.z + (v2.z ?? 0) };
-  }
-  /**
-   * subtract
-   *
-   * Subtract two vectors to produce a new vector (v1-v2)
-   */
-  static subtract(v1, v2) {
-    return { x: v1.x - (v2.x ?? 0), y: v1.y - (v2.y ?? 0), z: v1.z - (v2.z ?? 0) };
-  }
-  /** scale
-   *
-   * Multiple all entries in a vector by a single scalar value producing a new vector
-   */
-  static scale(v1, scale) {
-    return { x: v1.x * scale, y: v1.y * scale, z: v1.z * scale };
-  }
-  /**
-   * dot
-   *
-   * Calculate the dot product of two vectors
-   */
-  static dot(a, b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-  }
-  /**
-   * cross
-   *
-   * Calculate the cross product of two vectors. Returns a new vector.
-   */
-  static cross(a, b) {
-    return {
-      x: a.y * b.z - a.z * b.y,
-      y: a.z * b.x - a.x * b.z,
-      z: a.x * b.y - a.y * b.x
-    };
-  }
-  /**
-   * magnitude
-   *
-   * The magnitude of a vector
-   */
-  static magnitude(v) {
-    return Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
-  }
-  /**
-   * distance
-   *
-   * Calculate the distance between two vectors
-   */
-  static distance(a, b) {
-    return _Vector3Utils.magnitude(_Vector3Utils.subtract(a, b));
-  }
-  /**
-   * normalize
-   *
-   * Takes a vector 3 and normalizes it to a unit vector
-   */
-  static normalize(v) {
-    const mag = _Vector3Utils.magnitude(v);
-    return { x: v.x / mag, y: v.y / mag, z: v.z / mag };
-  }
-  /**
-   * floor
-   *
-   * Floor the components of a vector to produce a new vector
-   */
-  static floor(v) {
-    return { x: Math.floor(v.x), y: Math.floor(v.y), z: Math.floor(v.z) };
-  }
-  /**
-   * toString
-   *
-   * Create a string representation of a vector3
-   */
-  static toString(v, options) {
-    const decimals = options?.decimals ?? 2;
-    const str = [v.x.toFixed(decimals), v.y.toFixed(decimals), v.z.toFixed(decimals)];
-    return str.join(options?.delimiter ?? ", ");
-  }
-  /**
-   * clamp
-   *
-   * Clamps the components of a vector to limits to produce a new vector
-   */
-  static clamp(v, limits) {
-    return {
-      x: clampNumber(v.x, limits?.min?.x ?? Number.MIN_SAFE_INTEGER, limits?.max?.x ?? Number.MAX_SAFE_INTEGER),
-      y: clampNumber(v.y, limits?.min?.y ?? Number.MIN_SAFE_INTEGER, limits?.max?.y ?? Number.MAX_SAFE_INTEGER),
-      z: clampNumber(v.z, limits?.min?.z ?? Number.MIN_SAFE_INTEGER, limits?.max?.z ?? Number.MAX_SAFE_INTEGER)
-    };
-  }
-  /**
-   * lerp
-   *
-   * Constructs a new vector using linear interpolation on each component from two vectors.
-   */
-  static lerp(a, b, t) {
-    return {
-      x: a.x + (b.x - a.x) * t,
-      y: a.y + (b.y - a.y) * t,
-      z: a.z + (b.z - a.z) * t
-    };
-  }
-  /**
-   * slerp
-   *
-   * Constructs a new vector using spherical linear interpolation on each component from two vectors.
-   */
-  static slerp(a, b, t) {
-    const theta = Math.acos(_Vector3Utils.dot(a, b));
-    const sinTheta = Math.sin(theta);
-    const ta = Math.sin((1 - t) * theta) / sinTheta;
-    const tb = Math.sin(t * theta) / sinTheta;
-    return _Vector3Utils.add(_Vector3Utils.scale(a, ta), _Vector3Utils.scale(b, tb));
-  }
-  /**
-   * multiply
-   *
-   * Element-wise multiplication of two vectors together.
-   * Not to be confused with {@link Vector3Utils.dot} product or {@link Vector3Utils.cross} product
-   */
-  static multiply(a, b) {
-    return {
-      x: a.x * b.x,
-      y: a.y * b.y,
-      z: a.z * b.z
-    };
-  }
-  /**
-   * rotateX
-   *
-   * Rotates the vector around the x axis counterclockwise (left hand rule)
-   * @param a - Angle in radians
-   */
-  static rotateX(v, a) {
-    let cos = Math.cos(a);
-    let sin = Math.sin(a);
-    return {
-      x: v.x,
-      y: v.y * cos - v.z * sin,
-      z: v.z * cos + v.y * sin
-    };
-  }
-  /**
-   * rotateY
-   *
-   * Rotates the vector around the y axis counterclockwise (left hand rule)
-   * @param a - Angle in radians
-   */
-  static rotateY(v, a) {
-    let cos = Math.cos(a);
-    let sin = Math.sin(a);
-    return {
-      x: v.x * cos + v.z * sin,
-      y: v.y,
-      z: v.z * cos - v.x * sin
-    };
-  }
-  /**
-   * rotateZ
-   *
-   * Rotates the vector around the z axis counterclockwise (left hand rule)
-   * @param a - Angle in radians
-   */
-  static rotateZ(v, a) {
-    let cos = Math.cos(a);
-    let sin = Math.sin(a);
-    return {
-      x: v.x * cos - v.y * sin,
-      y: v.y * cos + v.x * sin,
-      z: v.z
-    };
-  }
-};
-
-// scripts/gameHelpers.ts
-function spawnNewBlock(ARENA_VECTOR_OFFSET, ARENA_SIZE, blockType) {
-  const overworld = world3.getDimension("overworld");
-  const x = Math.floor(Math.random() * ARENA_SIZE.x) - ARENA_SIZE.x / 2;
-  const z = Math.floor(Math.random() * ARENA_SIZE.z) - ARENA_SIZE.z / 2;
-  const y = Math.floor(Math.random() * 10) + 1;
-  world3.sendMessage(`Creating new ${blockType} at ${x}, ${y}, ${z}!`);
-  const blockLocation = Vector3Utils.add(ARENA_VECTOR_OFFSET, { x, y, z });
-  const block = overworld.getBlock(blockLocation);
+function spawnBlockWithinArena(arenaLocation2, arenaSize2, blockType) {
+  const overworld2 = world3.getDimension("overworld");
+  const x = Math.floor(Math.random() * arenaSize2.x) - Math.floor(arenaSize2.x / 2) + arenaLocation2.x;
+  const y = Math.floor(Math.random() * arenaSize2.y) + arenaLocation2.y;
+  const z = Math.floor(Math.random() * arenaSize2.z) - Math.floor(arenaSize2.z / 2) + arenaLocation2.z;
+  const blockSpawnLocation = { x, y, z };
+  world3.sendMessage(`Creating new ${blockType} at ${blockSpawnLocation.x}, ${blockSpawnLocation.y}, ${blockSpawnLocation.z}`);
   const blockPermutation = BlockPermutation2.resolve(blockType);
-  if (block) {
-    block.setPermutation(blockPermutation);
-  }
+  overworld2.getBlock(blockSpawnLocation)?.setPermutation(blockPermutation);
 }
-function spawnMobs(ARENA_VECTOR_OFFSET, ARENA_SIZE, mobType) {
-  const overworld = world3.getDimension("overworld");
+function spawnMobsWithinArena(arenaLocation2, arenaSize2, mobType) {
+  const overworld2 = world3.getDimension("overworld");
   const count = Math.floor(Math.random() * 2) + 1;
   for (let j = 0; j < count; j++) {
-    const x = Math.floor(Math.random() * (ARENA_SIZE.x - 2)) - ARENA_SIZE.x / 2;
-    const z = Math.floor(Math.random() * (ARENA_SIZE.z - 2)) - ARENA_SIZE.z / 2;
+    const x = Math.floor(Math.random() * arenaSize2.x) - Math.floor(arenaSize2.x / 2) + arenaLocation2.x;
+    const y = Math.floor(Math.random() * arenaSize2.y) + arenaLocation2.y;
+    const z = Math.floor(Math.random() * arenaSize2.z) - Math.floor(arenaSize2.z / 2) + arenaLocation2.z;
+    const mobSpawnLocation = { x, y, z };
     if (mobType) {
-      overworld.spawnEntity(mobType, Vector3Utils.add(ARENA_VECTOR_OFFSET, { x, y: 1, z }));
+      overworld2.spawnEntity(mobType, mobSpawnLocation);
+      world3.sendMessage(`Spawning ${mobType} at ${mobSpawnLocation.x}, ${mobSpawnLocation.y}, ${mobSpawnLocation.z}`);
     } else {
       console.warn(`Invalid mob type: ${mobType}`);
     }
   }
 }
-function placeRandomBlockItems(ARENA_VECTOR_OFFSET, ARENA_SIZE, blockType = "minecraft:leaves") {
-  const overworld = world3.getDimension("overworld");
+function placeRandomBlocksWithinArena(arenaLocation2, arenaSize2, blockType = "minecraft:leaves") {
+  const overworld2 = world3.getDimension("overworld");
   for (let i = 0; i < 10; i++) {
-    const x = Math.floor(Math.random() * (ARENA_SIZE.x - 1)) - (ARENA_SIZE.x / 2 - 1);
-    const y = Math.floor(Math.random() * 10);
-    const z = Math.floor(Math.random() * (ARENA_SIZE.z - 1)) - (ARENA_SIZE.z / 2 - 1);
-    overworld.getBlock(Vector3Utils.add(ARENA_VECTOR_OFFSET, { x, y, z }))?.setPermutation(BlockPermutation2.resolve(blockType));
+    const x = Math.floor(Math.random() * arenaSize2.x) - Math.floor(arenaSize2.x / 2) + arenaLocation2.x;
+    const y = Math.floor(Math.random() * arenaSize2.y) + arenaLocation2.y;
+    const z = Math.floor(Math.random() * arenaSize2.z) - Math.floor(arenaSize2.z / 2) + arenaLocation2.z;
+    const randomBlockLocation = { x, y, z };
+    const blockPermutation = BlockPermutation2.resolve(blockType);
+    overworld2.getBlock(randomBlockLocation)?.setPermutation(blockPermutation);
   }
 }
 
 // scripts/Game1.ts
+var players = world4.getAllPlayers().filter((player) => !player.hasTag("game1"));
+var overworld = world4.getDimension("overworld");
+var lobbyLocation = { x: 0, y: -60, z: 0 };
+var arenaLocation = { x: 25, y: -60, z: 0 };
+var arenaSize = { x: 30, y: 5, z: 30 };
+var arenaCenter = {
+  x: arenaLocation.x,
+  y: arenaLocation.y + Math.floor(arenaSize.y / 2),
+  z: arenaLocation.z
+};
+var arenaLowerCorner = {
+  x: arenaLocation.x - Math.floor(arenaSize.x / 2),
+  y: arenaLocation.y,
+  z: arenaLocation.z - Math.floor(arenaSize.z / 2),
+  dimension: overworld
+  // Assuming overworld is defined elsewhere
+};
 var gameConfig = {
   name: "Mine the Diamonds!",
   description: "Mine as many diamonds as possible to earn points!",
   timerMinutes: 2,
-  gameMode: "survival",
+  gameMode: GameMode2.survival,
   dayOrNight: "day",
   difficulty: "easy",
   maxPlayers: 10,
   minPlayers: 1,
-  arenaSize: { x: 30, y: 5, z: 30 },
-  arenaOffset: { x: 150, y: -60, z: 0 }
-  //starting location, flat world -60 is ground
+  lobbyLocation,
+  arenaLocation,
+  arenaSize,
+  // Using calculated values
+  arenaCenter,
+  arenaLowerCorner
 };
-function Game1(log, lobbyLocation) {
-  const players = world4.getAllPlayers().filter(
-    (player) => !player.hasTag("game1")
-  );
-  const arenaLowerCorner = {
-    ...gameConfig.arenaOffset,
-    // Spread the properties correctly
-    dimension: world4.getDimension("overworld")
-    // Assign the dimension directly
-  };
+function Game1(log, StartLocation) {
   const gameSetup = new GameSetup(
     gameConfig.name,
     gameConfig.description,
     gameConfig.timerMinutes,
     gameConfig.gameMode,
     gameConfig.dayOrNight,
-    gameConfig.difficulty
+    gameConfig.difficulty,
+    gameConfig.lobbyLocation,
+    gameConfig.arenaLocation,
+    gameConfig.arenaSize,
+    gameConfig.arenaCenter,
+    gameConfig.arenaLowerCorner
   );
-  gameSetup.startGame(players, gameConfig.arenaOffset, arenaLowerCorner, gameConfig.arenaSize);
+  gameSetup.startGame(players);
   const startingInventory = [
     new ItemStack(MinecraftItemTypes.DiamondPickaxe),
     new ItemStack(MinecraftItemTypes.Dirt, 64)
@@ -3649,7 +3375,6 @@ function Game1(log, lobbyLocation) {
   let lastOreDestroyed = false;
   world4.beforeEvents.playerBreakBlock.subscribe((eventData) => {
     if (eventData.block.typeId === "minecraft:diamond_ore") {
-      console.warn("Warning: Diamond ore block about to be broken!");
       lastOreDestroyed = true;
       missingDiamondBlocks++;
       score++;
@@ -3662,32 +3387,29 @@ function Game1(log, lobbyLocation) {
       curTick++;
       if (curTick === 100) {
         world4.sendMessage("BREAK THE DIAMOND BLOCKS!");
-        spawnNewBlock(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:diamond_ore");
+        spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:diamond_ore");
       }
-      if (curTick > 100 && curTick % 20 === 0) {
-        if (lastOreDestroyed && missingDiamondBlocks >= blockCountThreshold) {
-          spawnNewBlock(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:diamond_ore");
-          missingDiamondBlocks = 0;
-          lastOreDestroyed = false;
-        }
+      if (curTick > 100 && curTick % 20 === 0 && lastOreDestroyed && missingDiamondBlocks >= blockCountThreshold) {
+        spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:diamond_ore");
+        missingDiamondBlocks = 0;
+        lastOreDestroyed = false;
       }
-      const spawnInterval = Math.ceil(200 / ((score + 1) / 3));
-      if (curTick > 100 && curTick % spawnInterval === 0) {
-        spawnMobs(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:zombie");
+      if (curTick > 100 && curTick % Math.ceil(200 / ((score + 1) / 3)) === 0) {
+        spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:zombie");
       }
       if (curTick > 100 && curTick % 29 === 0) {
-        placeRandomBlockItems(gameConfig.arenaOffset, gameConfig.arenaSize, "minecraft:leaves");
+        placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:leaves");
       }
     } catch (e) {
       console.warn("Tick error: " + e);
     }
-    system3.runTimeout(gameTick, 1);
+    system2.runTimeout(gameTick, 1);
   }
-  system3.run(gameTick);
+  system2.run(gameTick);
 }
 
 // scripts/ScriptManager.ts
-import { world as world5, system as system4 } from "@minecraft/server";
+import { world as world5, system as system3 } from "@minecraft/server";
 var ScriptManager = class {
   constructor() {
     this.tickCount = 0;
@@ -3695,8 +3417,8 @@ var ScriptManager = class {
     this._availableFuncs = {};
     this.gamePlayLogger = this.gamePlayLogger.bind(this);
     this.worldTick = this.worldTick.bind(this);
-    system4.afterEvents.scriptEventReceive.subscribe(this.newScriptEvent.bind(this));
-    system4.run(this.worldTick);
+    system3.afterEvents.scriptEventReceive.subscribe(this.newScriptEvent.bind(this));
+    system3.run(this.worldTick);
   }
   gamePlayLogger(message, status) {
     if (status !== void 0) {
@@ -3751,7 +3473,7 @@ var ScriptManager = class {
       world5.sendMessage("Type '/scriptevent run:<game_name>' in chat to run a specific game.");
     }
     this.tickCount++;
-    system4.run(this.worldTick);
+    system3.run(this.worldTick);
   }
   registerCode(sampleSet) {
     for (const sampleKey in sampleSet) {
