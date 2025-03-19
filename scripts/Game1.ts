@@ -1,5 +1,5 @@
 import { GameSetup } from "./gamesetup";
-import { world, system, DimensionLocation, ItemStack, Vector3 } from "@minecraft/server";
+import { world, system, DimensionLocation, ItemStack, Vector3, Player } from "@minecraft/server";
 import { setupInventory } from "./setupInventory";
 import { spawnNewBlock, checkForLessBlocks, spawnMobs, placeRandomBlockItems } from "./gameHelpers";
 import { MinecraftItemTypes } from "@minecraft/vanilla-data";
@@ -29,13 +29,12 @@ const gameConfig: GameConfig = {
   maxPlayers: 10,
   minPlayers: 2,
   arenaSize: { x: 30, y: 10, z: 30 }, // Arena Size Centralized
-  arenaoffset: { x: 0, y: -60, z: 0 },
+  arenaoffset: { x: -15, y: -60, z: -15 }, // Arena Offset Centralized,
 };
 
 export function Game1(log: (message: string, status?: number) => void, location: DimensionLocation) {
-  const overworld = world.getDimension("overworld");
+  // Get all players in the world
   const players = world.getAllPlayers();
-  const playerScores = new Map<string, number>();
 
   // Game Setup Using Config
   const gameSetup = new GameSetup(
@@ -48,8 +47,6 @@ export function Game1(log: (message: string, status?: number) => void, location:
   );
 
   gameSetup.startGame(players, location, gameConfig.arenaoffset, gameConfig.arenaSize);
-  const scoreObjective = gameSetup.setupScoreboard(); // Set up the scoreboard
-  gameSetup.resetPlayerScores(players);
 
   // Player Inventory Setup (changed to pickaxe instead of sword)
   const startingInventory = [
@@ -61,7 +58,8 @@ export function Game1(log: (message: string, status?: number) => void, location:
   let curTick = 0;
   let score = 0;
 
-  const blockCountThreshold = 100; // Threshold for spawning a new block
+  const blockCountThreshold = gameConfig.arenaSize.x * gameConfig.arenaSize.z * 0.1; // 10% of arena area
+  // Threshold for spawning a new block
 
   let missingDiamondBlocks = 0;
   let lastOreDestroyed = false;
@@ -80,18 +78,11 @@ export function Game1(log: (message: string, status?: number) => void, location:
       // Log the missing blocks count
       console.warn(`Missing diamond blocks: ${missingDiamondBlocks}`);
 
-      players.forEach((player) => {
-        const currentScore = playerScores.get(player.name) || 0;
-        const newScore = currentScore + 1;
-        playerScores.set(player.name, newScore);
+      // Update the score when diamond ore is broken
+      score++;
+      world.sendMessage(`Diamond ore block mined! Score: ${score}`);
 
-        // Log the updated score for the player
-        console.warn(`Updated score for ${player.name}: ${newScore}`);
-
-        gameSetup.updatePlayerScore(player, newScore);
-      });
-
-      world.sendMessage(`Diamond ore block destroyed. Missing blocks: ${missingDiamondBlocks}`);
+      gameSetup.updatePlayerScore(eventData.player, score);
     }
   });
 
@@ -133,7 +124,7 @@ export function Game1(log: (message: string, status?: number) => void, location:
       }
 
       // Continue the game tick
-      system.run(gameTick);
+      system.runTimeout(gameTick, 1); // Run every tick
     }
 
     // Start the game tick after all setup

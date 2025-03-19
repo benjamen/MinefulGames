@@ -7,6 +7,7 @@ import {
   MinecraftDimensionTypes,
   EntityInventoryComponent,
   Vector3,
+  Player,
 } from "@minecraft/server";
 import { setupArena } from "./arenaUtils";
 
@@ -15,7 +16,6 @@ export class GameSetup {
   private intervalId: number | undefined;
   private gameName: string;
   private gameDescription: string;
-  private overallScores: Map<string, number> = new Map(); // Stores cumulative scores
   private gameMode: "survival" | "creative" | "adventure" | "spectator";
   private dayOrNight: "day" | "night"; // Day or Night cycle
   private difficulty: "peaceful" | "easy" | "normal" | "hard"; // Difficulty setting
@@ -40,12 +40,12 @@ export class GameSetup {
   startGame(
     players: any[],
     gameArea: DimensionLocation,
-    ARENA_VECTOR_OFFSET: Vector3,
-    ARENA_SIZE: { x: number; y: number; z: number }
+    arenaoffset: Vector3,
+    arenaSize: { x: number; y: number; z: number }
   ) {
     // Clear previous game data (objectives, arena, and player inventories)
     this.clearObjectives();
-    this.clearArena(gameArea);
+    this.clearArena(gameArea, arenaSize);
     this.clearPlayerInventories(players);
 
     world.sendMessage(`🎮 Welcome to ${this.gameName}!`);
@@ -55,26 +55,33 @@ export class GameSetup {
     // Set world settings for the game (Day/Night, Game Mode, Difficulty)
     this.setWorldSettings();
 
-    setupArena(gameArea, ARENA_VECTOR_OFFSET, ARENA_SIZE);
+    // In GameSetup.ts
+    const locationVector: Vector3 = { x: gameArea.x, y: gameArea.y, z: gameArea.z };
+    setupArena(locationVector, arenaoffset, arenaSize);
 
     const arenaCenter: Vector3 = {
-      x: ARENA_VECTOR_OFFSET.x + ARENA_SIZE.x / 2,
-      y: ARENA_VECTOR_OFFSET.y + 1, // Set slightly above the ground to prevent spawning inside blocks
-      z: ARENA_VECTOR_OFFSET.z + ARENA_SIZE.z / 2,
+      x: arenaoffset.x + arenaSize.x / 2,
+      y: arenaoffset.y + 1, // Ensure y is correct for ground level
+      z: arenaoffset.z + arenaSize.z / 2,
     };
 
     // Teleport players to the center of the arena
     players.forEach((player) => {
+      const currentPos = player.location;
+      console.warn(`Current position of ${player.name}: x=${currentPos.x}, y=${currentPos.y}, z=${currentPos.z}`);
+      console.warn(
+        `Teleporting ${player.name} to: x=${arenaCenter.x}, y=${arenaCenter.y}, z=${arenaCenter.z} in dimension ${gameArea.dimension}`
+      );
       player.teleport(arenaCenter, gameArea.dimension);
       player.sendMessage(`🚀 Teleporting you to the game area!`);
       player.setGameMode(this.getGameModeEnum()); // Use the helper function to get the correct GameMode value
     });
 
     // Ensure the scoreboard is set up before the game starts
-    this.setupScoreboard();
+    const Objective = this.setupScoreboard();
 
     // Reset points at the start of the game
-    this.resetPlayerScores(players);
+    this.resetPlayerScores(players, Objective);
 
     // Start the game timer
     this.startTimer(players);
@@ -83,42 +90,43 @@ export class GameSetup {
   // Clear all scoreboard objectives
   // Clear all scoreboard objectives
   private clearObjectives() {
+    let scoreObjective = world.scoreboard.getObjective("score");
+
+    if (!scoreObjective) {
+      return;
+    } else {
+      world.scoreboard.removeObjective(scoreObjective);
+    }
+
     try {
-      // Get all objectives
-      const objectives = world.scoreboard.getObjectives();
-
-      if (objectives.length === 0) {
-        world.sendMessage("✅ No scoreboard objectives to clear.");
-        return;
-      }
-
-      // Remove each objective
-      objectives.forEach((objective) => {
-        try {
-          world.scoreboard.removeObjective(objective);
-          world.sendMessage(`🧹 Removed scoreboard objective: ${objective.id}`);
-        } catch (error) {
-          console.warn(`Failed to remove objective ${objective.id}: ${error}`);
-          world.sendMessage(`⚠️ Error removing objective: ${objective.id}`);
-        }
-      });
+      world.scoreboard.clearObjectiveAtDisplaySlot(DisplaySlotId.Sidebar);
+      world.sendMessage("🧹 Removed scoreboard display from sidebar.");
     } catch (error) {
-      console.warn("Error while clearing scoreboard objectives: " + error);
-      world.sendMessage("⚠️ An error occurred while clearing objectives.");
+      console.warn("⚠️ Error removing scoreboard display: " + error);
     }
   }
 
   // Clear the arena by setting the specified area to air
-  private clearArena(gameArea: DimensionLocation) {
+  // Clear the arena by setting the specified area to air and removing all entities
+  private clearArena(gameArea: DimensionLocation, arenaSize: { x: number; y: number; z: number }) {
     const { x, y, z, dimension } = gameArea;
-    const arenaSize = 20; // Example: Set arena size (adjust as needed)
 
     try {
+      // Remove all entities within the arena (excluding players)
       dimension.runCommand(
-        `fill ${x - arenaSize} ${y} ${z - arenaSize} ${x + arenaSize} ${y + 10} ${z + arenaSize} air`
+        `kill @e[type=!player,x=${x - arenaSize.x / 2},y=${y},z=${z - arenaSize.z / 2},dx=${arenaSize.x},dy=${
+          arenaSize.y
+        },dz=${arenaSize.z}]`
       );
 
-      world.sendMessage(`🧹 Cleared the game arena!`);
+      // Fill the area with air
+      dimension.runCommand(
+        `fill ${x - arenaSize.x / 2} ${y} ${z - arenaSize.z / 2} ${x + arenaSize.x / 2} ${y + arenaSize.y} ${
+          z + arenaSize.z / 2
+        } air`
+      );
+
+      world.sendMessage(`🧹 Cleared the game arena and removed all entities!`);
     } catch (error) {
       world.sendMessage(`⚠️ Failed to clear arena: ${error}`);
     }
@@ -201,41 +209,18 @@ export class GameSetup {
     world.sendMessage(`⏳ Time is up! The game ${this.gameName} is over!`);
     players.forEach((player) => {
       // Teleport players back to lobby
-      player.teleport({ x: 20, y: -60, z: -6 }); // Adjust this to your lobby coordinates
+      player.teleport({ x: 20, y: -60, z: -6 }, world.getDimension(MinecraftDimensionTypes.overworld)); // Adjust this to your lobby coordinates
       player.sendMessage(`🏠 Returning to the lobby!`);
       player.setGameMode(GameMode.creative); // Set back to default game mode
     });
   }
 
-  // Create a new scoreboard objective
-  private createScoreObjective() {
-    try {
-      const objective = world.scoreboard.addObjective("points", "Points");
-      world.sendMessage(`✅ Created new scoreboard objective: points`);
-      return objective;
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        world.sendMessage(`⚠️ Failed to create scoreboard objective: ${error.message}`);
-        console.error(`Error details: ${error.stack}`);
-      } else {
-        world.sendMessage(`⚠️ Failed to create scoreboard objective: Unknown error`);
-        console.error("Unknown error occurred while creating scoreboard objective.");
-      }
-      throw error; // Consider logging the stack trace if needed
-    }
-  }
-
   // Setup a scoreboard sidebar
   setupScoreboard() {
-    let scoreObjective = world.scoreboard.getObjective("points");
+    let scoreObjective = world.scoreboard.getObjective("score");
 
-    // Create objective only if it doesn't exist
     if (!scoreObjective) {
-      scoreObjective = this.createScoreObjective();
-      if (!scoreObjective) {
-        console.error("Failed to create scoreboard objective.");
-        return null; // Handle failure gracefully
-      }
+      scoreObjective = world.scoreboard.addObjective("score", "Score");
     }
 
     // Ensure the objective is displayed in the sidebar
@@ -247,44 +232,19 @@ export class GameSetup {
   }
 
   // Update points for a player
-  updatePlayerScore(player: any, points: number) {
-    const objective = world.scoreboard.getObjective("points");
-    if (objective) {
-      try {
-        objective.setScore(player, points);
-        console.log(`Updated score for ${player.name}: ${points}`);
-      } catch (error: unknown) {
-        if (error instanceof Error) {
-          console.error(`Failed to update score for ${player.name}: ${error.message}`);
-          console.error(`Stack trace: ${error.stack}`);
-        } else {
-          console.error(`Unknown error occurred while updating score for ${player.name}`);
-        }
-      }
-    } else {
-      console.warn(`Scoreboard objective not found. Unable to update score for ${player.name}`);
+  // Update points for a player
+  updatePlayerScore(player: Player, points: number) {
+    try {
+      // Use the correct objective name "score" that matches what setupScoreboard creates
+      player.runCommand(`scoreboard players set "${player.name}" score ${points}`);
+      console.log(`✅ Updated score for ${player.name}: ${points}`);
+    } catch (error: unknown) {
+      console.error(`❌ Failed to update score for ${player.name}: ${error}`);
     }
   }
 
-  resetPlayerScores(players: any[]) {
+  resetPlayerScores(players: any[], Objective: any) {
     // Reset scores for all players
-    const objective = world.scoreboard.getObjective("points");
-    if (objective) {
-      players.forEach((player) => {
-        try {
-          objective.setScore(player, 0);
-          console.log(`Reset score for ${player.name}`);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            console.error(`Failed to reset score for ${player.name}: ${error.message}`);
-            console.error(`Stack trace: ${error.stack}`);
-          } else {
-            console.error(`Unknown error occurred while resetting score for ${player.name}`);
-          }
-        }
-      });
-    } else {
-      console.warn(`Scoreboard objective not found. Unable to reset scores.`);
-    }
+    Objective.setScore(players, 0);
   }
 }

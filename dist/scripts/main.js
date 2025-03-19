@@ -3082,7 +3082,6 @@ var GameSetup = class {
   // Difficulty setting
   constructor(gameName, gameDescription, timerMinutes, gameMode, dayOrNight, difficulty) {
     this.gameTimer = 0;
-    this.overallScores = /* @__PURE__ */ new Map();
     this.gameName = gameName;
     this.gameDescription = gameDescription;
     this.gameTimer = timerMinutes * 60;
@@ -3091,56 +3090,64 @@ var GameSetup = class {
     this.difficulty = difficulty;
   }
   // Display game introduction and start timer
-  startGame(players, gameArea, ARENA_VECTOR_OFFSET, ARENA_SIZE) {
+  startGame(players, gameArea, arenaoffset, arenaSize) {
     this.clearObjectives();
-    this.clearArena(gameArea);
+    this.clearArena(gameArea, arenaSize);
     this.clearPlayerInventories(players);
     world2.sendMessage(`\u{1F3AE} Welcome to ${this.gameName}!`);
     world2.sendMessage(`${this.gameDescription}`);
     world2.sendMessage(`\u23F3 You have ${this.gameTimer / 60} minutes! Good luck!`);
     this.setWorldSettings();
-    setupArena(gameArea, ARENA_VECTOR_OFFSET, ARENA_SIZE);
+    const locationVector = { x: gameArea.x, y: gameArea.y, z: gameArea.z };
+    setupArena(locationVector, arenaoffset, arenaSize);
+    const arenaCenter = {
+      x: arenaoffset.x + arenaSize.x / 2,
+      y: arenaoffset.y + 1,
+      // Ensure y is correct for ground level
+      z: arenaoffset.z + arenaSize.z / 2
+    };
     players.forEach((player) => {
-      player.teleport(gameArea);
+      const currentPos = player.location;
+      console.warn(`Current position of ${player.name}: x=${currentPos.x}, y=${currentPos.y}, z=${currentPos.z}`);
+      console.warn(
+        `Teleporting ${player.name} to: x=${arenaCenter.x}, y=${arenaCenter.y}, z=${arenaCenter.z} in dimension ${gameArea.dimension}`
+      );
+      player.teleport(arenaCenter, gameArea.dimension);
       player.sendMessage(`\u{1F680} Teleporting you to the game area!`);
       player.setGameMode(this.getGameModeEnum());
     });
-    this.setupScoreboard();
-    this.resetPlayerScores(players);
+    const Objective = this.setupScoreboard();
+    this.resetPlayerScores(players, Objective);
     this.startTimer(players);
   }
   // Clear all scoreboard objectives
   // Clear all scoreboard objectives
   clearObjectives() {
+    let scoreObjective = world2.scoreboard.getObjective("score");
+    if (!scoreObjective) {
+      return;
+    } else {
+      world2.scoreboard.removeObjective(scoreObjective);
+    }
     try {
-      const objectives = world2.scoreboard.getObjectives();
-      if (objectives.length === 0) {
-        world2.sendMessage("\u2705 No scoreboard objectives to clear.");
-        return;
-      }
-      objectives.forEach((objective) => {
-        try {
-          world2.scoreboard.removeObjective(objective);
-          world2.sendMessage(`\u{1F9F9} Removed scoreboard objective: ${objective.id}`);
-        } catch (error) {
-          console.warn(`Failed to remove objective ${objective.id}: ${error}`);
-          world2.sendMessage(`\u26A0\uFE0F Error removing objective: ${objective.id}`);
-        }
-      });
+      world2.scoreboard.clearObjectiveAtDisplaySlot(DisplaySlotId.Sidebar);
+      world2.sendMessage("\u{1F9F9} Removed scoreboard display from sidebar.");
     } catch (error) {
-      console.warn("Error while clearing scoreboard objectives: " + error);
-      world2.sendMessage("\u26A0\uFE0F An error occurred while clearing objectives.");
+      console.warn("\u26A0\uFE0F Error removing scoreboard display: " + error);
     }
   }
   // Clear the arena by setting the specified area to air
-  clearArena(gameArea) {
+  // Clear the arena by setting the specified area to air and removing all entities
+  clearArena(gameArea, arenaSize) {
     const { x, y, z, dimension } = gameArea;
-    const arenaSize = 20;
     try {
       dimension.runCommand(
-        `fill ${x - arenaSize} ${y} ${z - arenaSize} ${x + arenaSize} ${y + 10} ${z + arenaSize} air`
+        `kill @e[type=!player,x=${x - arenaSize.x / 2},y=${y},z=${z - arenaSize.z / 2},dx=${arenaSize.x},dy=${arenaSize.y},dz=${arenaSize.z}]`
       );
-      world2.sendMessage(`\u{1F9F9} Cleared the game arena!`);
+      dimension.runCommand(
+        `fill ${x - arenaSize.x / 2} ${y} ${z - arenaSize.z / 2} ${x + arenaSize.x / 2} ${y + arenaSize.y} ${z + arenaSize.z / 2} air`
+      );
+      world2.sendMessage(`\u{1F9F9} Cleared the game arena and removed all entities!`);
     } catch (error) {
       world2.sendMessage(`\u26A0\uFE0F Failed to clear arena: ${error}`);
     }
@@ -3210,37 +3217,16 @@ var GameSetup = class {
   endGame(players) {
     world2.sendMessage(`\u23F3 Time is up! The game ${this.gameName} is over!`);
     players.forEach((player) => {
-      player.teleport({ x: 20, y: -60, z: -6 });
+      player.teleport({ x: 20, y: -60, z: -6 }, world2.getDimension(MinecraftDimensionTypes2.overworld));
       player.sendMessage(`\u{1F3E0} Returning to the lobby!`);
       player.setGameMode(GameMode.creative);
     });
   }
-  // Create a new scoreboard objective
-  createScoreObjective() {
-    try {
-      const objective = world2.scoreboard.addObjective("points", "Points");
-      world2.sendMessage(`\u2705 Created new scoreboard objective: points`);
-      return objective;
-    } catch (error) {
-      if (error instanceof Error) {
-        world2.sendMessage(`\u26A0\uFE0F Failed to create scoreboard objective: ${error.message}`);
-        console.error(`Error details: ${error.stack}`);
-      } else {
-        world2.sendMessage(`\u26A0\uFE0F Failed to create scoreboard objective: Unknown error`);
-        console.error("Unknown error occurred while creating scoreboard objective.");
-      }
-      throw error;
-    }
-  }
   // Setup a scoreboard sidebar
   setupScoreboard() {
-    let scoreObjective = world2.scoreboard.getObjective("points");
+    let scoreObjective = world2.scoreboard.getObjective("score");
     if (!scoreObjective) {
-      scoreObjective = this.createScoreObjective();
-      if (!scoreObjective) {
-        console.error("Failed to create scoreboard objective.");
-        return null;
-      }
+      scoreObjective = world2.scoreboard.addObjective("score", "Score");
     }
     world2.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
       objective: scoreObjective
@@ -3248,43 +3234,17 @@ var GameSetup = class {
     return scoreObjective;
   }
   // Update points for a player
+  // Update points for a player
   updatePlayerScore(player, points) {
-    const objective = world2.scoreboard.getObjective("points");
-    if (objective) {
-      try {
-        objective.setScore(player, points);
-        console.log(`Updated score for ${player.name}: ${points}`);
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error(`Failed to update score for ${player.name}: ${error.message}`);
-          console.error(`Stack trace: ${error.stack}`);
-        } else {
-          console.error(`Unknown error occurred while updating score for ${player.name}`);
-        }
-      }
-    } else {
-      console.warn(`Scoreboard objective not found. Unable to update score for ${player.name}`);
+    try {
+      player.runCommand(`scoreboard players set "${player.name}" score ${points}`);
+      console.log(`\u2705 Updated score for ${player.name}: ${points}`);
+    } catch (error) {
+      console.error(`\u274C Failed to update score for ${player.name}: ${error}`);
     }
   }
-  resetPlayerScores(players) {
-    const objective = world2.scoreboard.getObjective("points");
-    if (objective) {
-      players.forEach((player) => {
-        try {
-          objective.setScore(player, 0);
-          console.log(`Reset score for ${player.name}`);
-        } catch (error) {
-          if (error instanceof Error) {
-            console.error(`Failed to reset score for ${player.name}: ${error.message}`);
-            console.error(`Stack trace: ${error.stack}`);
-          } else {
-            console.error(`Unknown error occurred while resetting score for ${player.name}`);
-          }
-        }
-      });
-    } else {
-      console.warn(`Scoreboard objective not found. Unable to reset scores.`);
-    }
+  resetPlayerScores(players, Objective) {
+    Objective.setScore(players, 0);
   }
 };
 
@@ -3549,12 +3509,11 @@ var gameConfig = {
   minPlayers: 2,
   arenaSize: { x: 30, y: 10, z: 30 },
   // Arena Size Centralized
-  arenaoffset: { x: 0, y: -60, z: 0 }
+  arenaoffset: { x: -15, y: -60, z: -15 }
+  // Arena Offset Centralized,
 };
 function Game1(log, location) {
-  const overworld = world4.getDimension("overworld");
   const players = world4.getAllPlayers();
-  const playerScores = /* @__PURE__ */ new Map();
   const gameSetup = new GameSetup(
     gameConfig.name,
     gameConfig.description,
@@ -3564,8 +3523,6 @@ function Game1(log, location) {
     gameConfig.difficulty
   );
   gameSetup.startGame(players, location, gameConfig.arenaoffset, gameConfig.arenaSize);
-  const scoreObjective = gameSetup.setupScoreboard();
-  gameSetup.resetPlayerScores(players);
   const startingInventory = [
     new ItemStack(MinecraftItemTypes.DiamondPickaxe),
     new ItemStack(MinecraftItemTypes.Dirt, 64)
@@ -3574,7 +3531,7 @@ function Game1(log, location) {
   players.forEach((player) => setupInventory(player, startingInventory));
   let curTick = 0;
   let score = 0;
-  const blockCountThreshold = 100;
+  const blockCountThreshold = gameConfig.arenaSize.x * gameConfig.arenaSize.z * 0.1;
   let missingDiamondBlocks = 0;
   let lastOreDestroyed = false;
   world4.beforeEvents.playerBreakBlock.subscribe((eventData) => {
@@ -3583,14 +3540,9 @@ function Game1(log, location) {
       lastOreDestroyed = true;
       missingDiamondBlocks++;
       console.warn(`Missing diamond blocks: ${missingDiamondBlocks}`);
-      players.forEach((player) => {
-        const currentScore = playerScores.get(player.name) || 0;
-        const newScore = currentScore + 1;
-        playerScores.set(player.name, newScore);
-        console.warn(`Updated score for ${player.name}: ${newScore}`);
-        gameSetup.updatePlayerScore(player, newScore);
-      });
-      world4.sendMessage(`Diamond ore block destroyed. Missing blocks: ${missingDiamondBlocks}`);
+      score++;
+      world4.sendMessage(`Diamond ore block mined! Score: ${score}`);
+      gameSetup.updatePlayerScore(eventData.player, score);
     }
   });
   function startGameTick() {
@@ -3618,7 +3570,7 @@ function Game1(log, location) {
       } catch (e) {
         console.warn("Tick error: " + e);
       }
-      system3.run(gameTick);
+      system3.runTimeout(gameTick, 1);
     }
     system3.run(gameTick);
   }
