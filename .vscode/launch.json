@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
       {
-        "type": "minecraft-ts",
+        "type": "minecraft-js",
         "request": "attach",
         "name": "Debug with Minecraft",
         "mode": "listen",

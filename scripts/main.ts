@@ -1,8 +1,8 @@
-import { Game1 } from "./Game1";
+import { MinetheDiamonds } from "./MinetheDiamonds";
 import ScriptManager from "./ScriptManager";
 
 const sm = new ScriptManager();
 
 sm.registerCode({
-  game1: [Game1],
+  minethediamonds: [MinetheDiamonds],
 });
