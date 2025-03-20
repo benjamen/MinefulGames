@@ -1,5 +1,5 @@
 import { GameMode, Player, DimensionLocation } from "@minecraft/server";
-import { setupArena, clearArena, teleportPlayersToArena } from "./ArenaManager";
+import { setupArena, clearArena, teleportPlayersToLobby, teleportPlayersToArena } from "./ArenaManager";
 import { setupScoreboard, resetPlayerScores } from "./ScoreManager";
 import { setWorldSettings } from "./WorldManager";
 import { setupPlayers } from "./PlayerManager";
@@ -59,14 +59,24 @@ export class GameSetup {
 
     // Now this method does everything needed
     setupPlayers(players, this.startingInventory, this.gameMode);
+    teleportPlayersToArena(players, this.arenaLocation, "overworld");
 
     const objective = setupScoreboard();
     if (objective) resetPlayerScores(players);
   }
 
   endGame(players: Player[]) {
-    world.sendMessage(`⏳ Time is up! The game ${this.gameName} is over!`);
-    teleportPlayersToArena(players, this.lobbyLocation, "overworld");
+    console.log(`⏳ Time is up! The game ${this.gameName} is over!`);
+    teleportPlayersToLobby(players, this.lobbyLocation, "overworld");
     players.forEach((player) => player.setGameMode(GameMode.creative));
   }
+
+
+  displayTimer(timeLeft: number) {
+        // Code to display the timer at the bottom of the screen
+       
+    }
+
 }
+
+

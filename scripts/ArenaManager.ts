@@ -1,5 +1,8 @@
-import { world, DimensionLocation } from "@minecraft/server";
+import { world, DimensionLocation, Player, BlockPermutation } from "@minecraft/server";
+import { MinecraftDimensionTypes } from "@minecraft/vanilla-data";
+import { Vector3Utils } from "@minecraft/math";
 
+const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
 /**
  * Set up the arena boundaries and structure.
  * @param arenaLocation The offset position for the arena ({ x, y, z })
@@ -9,8 +12,76 @@ export function setupArena(
   arenaLocation: { x: number; y: number; z: number },
   arenaSize: { x: number; y: number; z: number }
 ) {
-  world.sendMessage("🌍 Setting up arena...");
-  // TODO: Add arena setup logic (e.g., clearing, barriers, decorations)
+
+
+  // Verify if the chunks at the arena's location are loaded
+  const testBlock = overworld.getBlock({
+    x: arenaLocation.x,
+    y: arenaLocation.y,
+    z: arenaLocation.z,
+  });
+
+  if (!testBlock) {
+    console.warn("⚠️ Arena location is in an unloaded chunk. Ensure a player is nearby.");
+    return;
+  }
+
+  // Proceed with creating the arena since the chunks are loaded
+  createArena({
+    xOffset: arenaLocation.x,
+    yOffset: arenaLocation.y,
+    zOffset: arenaLocation.z,
+    xSize: arenaSize.x,
+    ySize: arenaSize.y,
+    zSize: arenaSize.z,
+  });
+}
+
+interface ArenaDimensions {
+  xOffset: number;
+  yOffset: number;
+  zOffset: number;
+  xSize: number;
+  ySize: number;
+  zSize: number;
+}
+
+/**
+ * Creates the arena structure with given parameters.
+ * @param dimensions Arena creation parameters
+ */
+export function createArena(dimensions: ArenaDimensions) {
+  let airBlockPerm = BlockPermutation.resolve("minecraft:air");
+  let cobblestoneBlockPerm = BlockPermutation.resolve("minecraft:cobblestone");
+
+  if (airBlockPerm) {
+    fillBlock(
+      airBlockPerm,
+      dimensions.xOffset - dimensions.xSize / 2 + 1,
+      dimensions.yOffset,
+      dimensions.zOffset - dimensions.zSize / 2 + 1,
+      dimensions.xOffset + dimensions.xSize / 2 - 1,
+      dimensions.yOffset + dimensions.ySize,
+      dimensions.zOffset + dimensions.zSize / 2 - 1
+    );
+  }
+
+  if (cobblestoneBlockPerm) {
+    fourWalls(
+      cobblestoneBlockPerm,
+      dimensions.xOffset - dimensions.xSize / 2,
+      dimensions.yOffset,
+      dimensions.zOffset - dimensions.zSize / 2,
+      dimensions.xOffset + dimensions.xSize / 2,
+      dimensions.yOffset + dimensions.ySize,
+      dimensions.zOffset + dimensions.zSize / 2
+    );
+  }
+
+  // Log arena creation
+  console.warn(
+    `Creating arena at offset (${dimensions.xOffset}, ${dimensions.yOffset}, ${dimensions.zOffset}) with size (${dimensions.xSize}, ${dimensions.ySize}, ${dimensions.zSize})`
+  );
 }
 
 /**
@@ -19,8 +90,6 @@ export function setupArena(
  * @param arenaSize Dimensions of the arena ({ x, y, z })
  */
 export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: number; y: number; z: number }) {
-  world.sendMessage("🧹 Clearing arena...");
-
   const { x, y, z, dimension } = arenaLowerCorner;
 
   // Validate arena size before proceeding.
@@ -46,19 +115,147 @@ export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: 
 }
 
 /**
+ * Calculate the arena center based on the arena's lower-corner.
+ * @param arenaLocation The starting position for the arena calculations ({ x, y, z })
+ * @param arenaSize Dimensions of the arena ({ x, y, z })
+ * @returns The center position of the arena ({ x, y, z })
+ */
+export function getArenaCenter(
+  arenaLocation: { x: number; y: number; z: number },
+  arenaSize: { x: number; y: number; z: number }
+): { x: number; y: number; z: number } {
+  return {
+    x: arenaLocation.x + arenaSize.x / 2 - 5,
+    y: arenaLocation.y, // Example: Increase offset if players spawn underground
+    z: arenaLocation.z + arenaSize.z / 2 - 5,
+  };
+}
+
+/**
  * Teleport all players to the arena center.
  * @param players The players to teleport
- * @param location The center position of the arena ({ x, y, z })
+ * @param arenaCenter The center position of the arena ({ x, y, z })
  * @param dimension The dimension to teleport players to
  */
+
 export function teleportPlayersToArena(
-  players: any[],
-  location: { x: number; y: number; z: number },
+  players: Player[],
+  arenaCenter: { x: number; y: number; z: number },
   dimension: string
 ) {
-  const targetDimension = world.getDimension(dimension);
-  players.forEach((player) => {
-    player.teleport(location, { dimension: targetDimension });
-    player.sendMessage("🚀 Teleporting you to the game area!");
-  });
+  try {
+    console.log("Teleporting players to arena...");
+    console.log(`Arena Center: ${JSON.stringify(arenaCenter)}, Dimension: ${dimension}`);
+
+    players.forEach((player) => {
+      if (player && player.isValid()) {
+        console.log(`Teleporting player ${player.name} to: ${JSON.stringify(arenaCenter)}`);
+        player.teleport(arenaCenter, { dimension: overworld });
+        player.sendMessage("🚀 Teleporting you to the game area!");
+      } else {
+        console.warn("Invalid player:", player);
+      }
+    });
+  } catch (error) {
+    console.error("Error teleporting players to arena:", error);
+  }
+}
+
+export function teleportPlayersToLobby(
+  players: Player[],
+  lobbyLocation: { x: number; y: number; z: number },
+  dimension: string
+) {
+  try {
+    console.log("Teleporting players to arena...");
+    console.log(`Arena Center: ${JSON.stringify(lobbyLocation)}, Dimension: ${dimension}`);
+
+    players.forEach((player) => {
+      if (player && player.isValid()) {
+        console.log(`Teleporting player ${player.name} to: ${JSON.stringify(lobbyLocation)}`);
+        player.teleport(lobbyLocation, { dimension: overworld });
+        player.sendMessage("🚀 Teleporting you to the Lobby!");
+      } else {
+        console.warn("Invalid player:", player);
+      }
+    });
+  } catch (error) {
+    console.error("Error teleporting players to arena:", error);
+  }
+}
+
+
+/**
+ * Fill a region with blocks
+ */
+export function fillBlock(
+  blockPerm: any,
+  xFrom: number,
+  yFrom: number,
+  zFrom: number,
+  xTo: number,
+  yTo: number,
+  zTo: number
+): void {
+  const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
+  for (let i = xFrom; i <= xTo; i++) {
+    for (let j = yFrom; j <= yTo; j++) {
+      for (let k = zFrom; k <= zTo; k++) {
+        const block = overworld.getBlock({ x: i, y: j, z: k });
+        block?.setPermutation(blockPerm);
+      }
+    }
+  }
+}
+
+export function fourWalls(
+  perm: any,
+  xFrom: number,
+  yFrom: number,
+  zFrom: number,
+  xTo: number,
+  yTo: number,
+  zTo: number
+): void {
+  const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
+  for (let i = xFrom; i <= xTo; i++) {
+    for (let k = yFrom; k <= yTo; k++) {
+      const block1 = overworld.getBlock({ x: i, y: k, z: zFrom });
+      block1?.setPermutation(perm);
+
+      const block2 = overworld.getBlock({ x: i, y: k, z: zTo });
+      block2?.setPermutation(perm);
+    }
+  }
+  for (let j = zFrom + 1; j < zTo; j++) {
+    for (let k = yFrom; k <= yTo; k++) {
+      const block3 = overworld.getBlock({ x: xFrom, y: k, z: j });
+      block3?.setPermutation(perm);
+
+      const block4 = overworld.getBlock({ x: xTo, y: k, z: j });
+      block4?.setPermutation(perm);
+    }
+  }
+}
+
+export function clearChunk(x: number, z: number) {
+  const dimension = world.getDimension(MinecraftDimensionTypes.Overworld);
+
+  // Calculate chunk boundaries (aligned to 16x16 grid)
+  const chunkXStart = Math.floor(x / 16) * 16;
+  const chunkZStart = Math.floor(z / 16) * 16;
+  const yStart = -64; // Bedrock edition lowest Y level
+  const yEnd = 320; // Bedrock edition max Y level
+
+  try {
+    // Fill the chunk with air to clear it
+    dimension.runCommand(
+      `fill ${chunkXStart} ${yStart} ${chunkZStart} ${chunkXStart + 15} ${yEnd} ${chunkZStart + 15} air`
+    );
+
+    // Notify success
+    console.warn(`✔️ Cleared chunk at (${chunkXStart}, ${yStart}, ${chunkZStart})`);
+  } catch (error) {
+    console.error(`⚠️ Failed to clear chunk: ${error}`);
+  }
 }

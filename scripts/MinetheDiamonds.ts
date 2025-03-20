@@ -1,6 +1,6 @@
 import { world, system, DimensionLocation, GameMode, Player } from "@minecraft/server";
 import { GameSetup } from "./GameManager";
-import { spawnBlockWithinArena } from "./SpawnManager";
+import { spawnBlockWithinArena, spawnMobsWithinArena, placeRandomBlocksWithinArena } from "./SpawnManager";
 import { updatePlayerScore, clearObjectives } from "./ScoreManager";
 
 class GameState {
@@ -17,7 +17,7 @@ const overworld = world.getDimension("overworld");
 const gameConfig = {
   name: "Mine the Diamonds!",
   description: "Mine as many diamonds as possible to earn points!",
-  timerMinutes: 2,
+  timerMinutes: 0.5,
   gameMode: GameMode.survival,
   dayOrNight: "day",
   difficulty: "easy",
@@ -79,7 +79,6 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
     world.sendMessage("Failed to start game due to an error.");
   }
 }
-
 function runGameTick() {
   try {
     if (!gameState) throw new Error("Game state is not initialized.");
@@ -95,10 +94,22 @@ function runGameTick() {
     // Increment tick
     gameState.curTick++;
 
+    // Calculate time left in seconds
+    const timeLeft = Math.max(0, gameConfig.timerMinutes * 60 - Math.floor(gameState.curTick / 20));
+
+    // Display the timer
+    if (gameSetup) {
+      gameSetup.displayTimer(timeLeft);
+    }
+
     // Game logic
     if (gameState.curTick === 1) {
       world.sendMessage("Game Start! Mine as many diamond blocks as possible!");
       setupPlayerBreakListener();
+
+      // Spawn initial leaves and mobs
+      placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:leaves");
+      spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:zombie");
     } else if (gameState.curTick === 100) {
       world.sendMessage("BREAK THE DIAMOND BLOCKS!");
       spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:diamond_ore");
@@ -107,6 +118,12 @@ function runGameTick() {
       if (gameState.curTick % 20 === 0 && gameState.lastOreDestroyed) {
         spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:diamond_ore");
         gameState.lastOreDestroyed = false;
+      }
+
+      // Spawn additional leaves and mobs periodically
+      if (gameState.curTick % 100 === 0) { // Every 5 seconds (100 ticks)
+        placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:leaves");
+        spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:zombie");
       }
     }
 
@@ -159,10 +176,10 @@ function endGame() {
   try {
     if (!world) throw new Error("World object is not available.");
 
-    if (blockBreakSubscription) {
-      blockBreakSubscription.unsubscribe();
-      blockBreakSubscription = null; // Reset the subscription
-    }
+  //  if (blockBreakSubscription) {
+  //    blockBreakSubscription.unsubscribe();
+  //    blockBreakSubscription = null; // Reset the subscription
+  //  }
 
     world.sendMessage("Game Over! Thanks for playing!");
 
