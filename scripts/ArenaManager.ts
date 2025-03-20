@@ -12,8 +12,6 @@ export function setupArena(
   arenaLocation: { x: number; y: number; z: number },
   arenaSize: { x: number; y: number; z: number }
 ) {
-
-
   // Verify if the chunks at the arena's location are loaded
   const testBlock = overworld.getBlock({
     x: arenaLocation.x,
@@ -78,10 +76,6 @@ export function createArena(dimensions: ArenaDimensions) {
     );
   }
 
-  // Log arena creation
-  console.warn(
-    `Creating arena at offset (${dimensions.xOffset}, ${dimensions.yOffset}, ${dimensions.zOffset}) with size (${dimensions.xSize}, ${dimensions.ySize}, ${dimensions.zSize})`
-  );
 }
 
 /**
@@ -107,8 +101,6 @@ export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: 
     const fillCommand = `fill ${x} ${y} ${z} ${x + arenaSize.x} ${y + arenaSize.y} ${z + arenaSize.z} air`;
     dimension.runCommand(fillCommand);
 
-    // Notify success.
-    world.sendMessage("🧹 Cleared the game arena and removed all entities!");
   } catch (error) {
     world.sendMessage(`⚠️ Failed to execute 'clearArena': ${error}`);
   }
@@ -144,12 +136,9 @@ export function teleportPlayersToArena(
   dimension: string
 ) {
   try {
-    console.log("Teleporting players to arena...");
-    console.log(`Arena Center: ${JSON.stringify(arenaCenter)}, Dimension: ${dimension}`);
 
     players.forEach((player) => {
       if (player && player.isValid()) {
-        console.log(`Teleporting player ${player.name} to: ${JSON.stringify(arenaCenter)}`);
         player.teleport(arenaCenter, { dimension: overworld });
         player.sendMessage("🚀 Teleporting you to the game area!");
       } else {
@@ -167,12 +156,9 @@ export function teleportPlayersToLobby(
   dimension: string
 ) {
   try {
-    console.log("Teleporting players to arena...");
-    console.log(`Arena Center: ${JSON.stringify(lobbyLocation)}, Dimension: ${dimension}`);
 
     players.forEach((player) => {
       if (player && player.isValid()) {
-        console.log(`Teleporting player ${player.name} to: ${JSON.stringify(lobbyLocation)}`);
         player.teleport(lobbyLocation, { dimension: overworld });
         player.sendMessage("🚀 Teleporting you to the Lobby!");
       } else {
@@ -183,7 +169,6 @@ export function teleportPlayersToLobby(
     console.error("Error teleporting players to arena:", error);
   }
 }
-
 
 /**
  * Fill a region with blocks
@@ -253,8 +238,6 @@ export function clearChunk(x: number, z: number) {
       `fill ${chunkXStart} ${yStart} ${chunkZStart} ${chunkXStart + 15} ${yEnd} ${chunkZStart + 15} air`
     );
 
-    // Notify success
-    console.warn(`✔️ Cleared chunk at (${chunkXStart}, ${yStart}, ${chunkZStart})`);
   } catch (error) {
     console.error(`⚠️ Failed to clear chunk: ${error}`);
   }

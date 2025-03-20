@@ -1,16 +1,27 @@
 import { world, DisplaySlotId, Player } from "@minecraft/server";
 
 /**
- * Set up the scoreboard with the "score" objective.
+ * Set up the scoreboard with the "score" objective for the given players.
+ * @param players The players who are playing the game
  * @returns The created or existing score objective, or null if setup fails
  */
-export function setupScoreboard() {
+export function setupScoreboard(players: Player[]) {
   try {
     let scoreObjective = world.scoreboard.getObjective("score");
     if (!scoreObjective) {
       scoreObjective = world.scoreboard.addObjective("score", "Score");
     }
+
+    // Set the scoreboard display for the sidebar
     world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, { objective: scoreObjective });
+
+    // Initialize scores for active players
+    players.forEach((player) => {
+      if (player && player.isValid()) {
+        updatePlayerScore(player, 0); // Initialize score to 0
+      }
+    });
+
     return scoreObjective;
   } catch (error) {
     console.error("❌ Failed to set up the scoreboard:", error);
@@ -19,13 +30,17 @@ export function setupScoreboard() {
 }
 
 /**
- * Reset the scores of all players to 0.
+ * Reset the scores of the given players to 0.
  * @param players The players whose scores should be reset
  */
 export function resetPlayerScores(players: Player[]) {
   const scoreObjective = world.scoreboard.getObjective("score");
   if (scoreObjective) {
-    players.forEach((player) => updatePlayerScore(player, 0));
+    players.forEach((player) => {
+      if (player && player.isValid()) {
+        updatePlayerScore(player, 0); // Reset score to 0
+      }
+    });
   }
 }
 
@@ -36,30 +51,37 @@ export function resetPlayerScores(players: Player[]) {
  */
 export function updatePlayerScore(player: Player, points: number) {
   try {
-    if (!player || !player.name) throw new Error("Invalid player or player name.");
+    if (!player || !player.isValid()) throw new Error("Invalid player.");
 
-    // Use a command to update the player's score
+    // Ensure the scoreboard exists (only run this once, not every time)
+    try {
+      world.getDimension("overworld").runCommand("scoreboard objectives add score dummy \"Player Score\"");
+    } catch (e) {
+      // Ignore if it already exists
+    }
+
+    // Update the player's score
     player.runCommandAsync(`scoreboard players set "${player.name}" score ${points}`);
-    console.warn(`✔️ Updated score for ${player.name} to ${points}.`);
   } catch (error) {
     console.error(`❌ Failed to update score for ${player.name}:`, error);
   }
 }
+
 /**
- * Clear the objectives from the scoreboard display.
+ * Clear the objectives from the scoreboard display and reset scores for the given players.
+ * @param players The players whose scores should be cleared
  */
-
-export function clearObjectives() {
+export function clearObjectives(players: Player[]) {
   try {
-    console.warn("Attempting to clear scoreboard display...");
-
-    // Run a command to clear the scoreboard display
+    // Clear the scoreboard display
     world.getDimension("overworld").runCommand("scoreboard objectives setdisplay sidebar");
-    console.warn("✔️ Cleared the scoreboard display using commands.");
 
-    // Run a command to reset all player scores
-    world.getDimension("overworld").runCommand("scoreboard players reset * score");
-    console.warn("✔️ Removed all player entries using commands.");
+    // Reset scores for the given players
+    players.forEach((player) => {
+      if (player && player.isValid()) {
+        player.runCommandAsync(`scoreboard players reset "${player.name}" score`);
+      }
+    });
   } catch (error) {
     console.warn("⚠️ Error removing scoreboard display:", error);
   }

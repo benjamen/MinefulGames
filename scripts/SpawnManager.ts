@@ -6,14 +6,9 @@ export function spawnMobsWithinArena(
   mobType: string
 ) {
   try {
-    console.log("Spawn Mobs Function Triggered");
-    console.log(
-      `Mob Type: ${mobType}, Arena Location: ${JSON.stringify(arenaLocation)}, Arena Size: ${JSON.stringify(arenaSize)}`
-    );
 
     const overworld = world.getDimension("overworld");
     const count = Math.floor(Math.random() * 2) + 1; // Spawn 1-2 mobs
-    console.log(`Spawning ${count} mobs...`);
 
     for (let i = 0; i < count; i++) {
       const x = arenaLocation.x + Math.floor(Math.random() * arenaSize.x) - Math.floor(arenaSize.x / 2);
@@ -21,11 +16,10 @@ export function spawnMobsWithinArena(
       const z = arenaLocation.z + Math.floor(Math.random() * arenaSize.z) - Math.floor(arenaSize.z / 2);
 
       const mobSpawnLocation = { x, y, z };
-      console.log(`Attempting to spawn mob at: ${JSON.stringify(mobSpawnLocation)}`);
 
       // Spawn the mob directly without checking the block below
       overworld.spawnEntity(mobType, mobSpawnLocation);
-      console.log(`Mob ${mobType} spawned successfully.`);
+
     }
   } catch (error) {
     console.error("Error spawning mob:", error);
@@ -38,9 +32,7 @@ export function spawnBlockWithinArena(
   blockType: string
 ) {
   try {
-    console.log("Spawn Block Function Triggered");
-    console.log(`Arena Location: ${JSON.stringify(arenaLocation)}, Arena Size: ${JSON.stringify(arenaSize)}`);
-    console.log(`Block Type: ${blockType}`);
+
 
     const overworld = world.getDimension("overworld");
 
@@ -49,7 +41,6 @@ export function spawnBlockWithinArena(
     const y = arenaLocation.y + Math.floor(Math.random() * arenaSize.y);
     const z = arenaLocation.z + Math.floor(Math.random() * arenaSize.z) - Math.floor(arenaSize.z / 2);
 
-    console.log(`Computed Block Coordinates: ${x}, ${y}, ${z}`);
     const blockSpawnLocation = { x, y, z };
 
     // Set the block at the computed location
@@ -62,7 +53,6 @@ export function spawnBlockWithinArena(
     const block = overworld.getBlock(blockSpawnLocation);
     if (block) {
       block.setPermutation(blockPermutation);
-      console.log("Block placed successfully.");
     } else {
       console.warn("Failed to retrieve block at spawn location:", blockSpawnLocation);
     }
@@ -77,12 +67,6 @@ export function placeRandomBlocksWithinArena(
   blockType: string = "minecraft:leaves"
 ) {
   try {
-    console.log("Place Random Blocks Function Triggered");
-    console.log(
-      `Block Type: ${blockType}, Arena Location: ${JSON.stringify(arenaLocation)}, Arena Size: ${JSON.stringify(
-        arenaSize
-      )}`
-    );
 
     const overworld = world.getDimension("overworld");
 
@@ -93,7 +77,6 @@ export function placeRandomBlocksWithinArena(
       const z = arenaLocation.z + Math.floor(Math.random() * arenaSize.z) - Math.floor(arenaSize.z / 2);
 
       const randomBlockLocation = { x, y, z };
-      console.log(`Placing block at: ${JSON.stringify(randomBlockLocation)}`);
 
       const blockPermutation = BlockPermutation.resolve(blockType);
       if (!blockPermutation) {
@@ -104,7 +87,6 @@ export function placeRandomBlocksWithinArena(
       const block = overworld.getBlock(randomBlockLocation);
       if (block) {
         block.setPermutation(blockPermutation);
-        console.log("Block placed successfully.");
       } else {
         console.warn("Failed to retrieve block at spawn location:", randomBlockLocation);
       }

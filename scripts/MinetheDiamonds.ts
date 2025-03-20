@@ -1,7 +1,7 @@
 import { world, system, DimensionLocation, GameMode, Player } from "@minecraft/server";
 import { GameSetup } from "./GameManager";
 import { spawnBlockWithinArena, spawnMobsWithinArena, placeRandomBlocksWithinArena } from "./SpawnManager";
-import { updatePlayerScore, clearObjectives } from "./ScoreManager";
+import { updatePlayerScore } from "./ScoreManager";
 
 class GameState {
   curTick: number = 0;
@@ -17,7 +17,7 @@ const overworld = world.getDimension("overworld");
 const gameConfig = {
   name: "Mine the Diamonds!",
   description: "Mine as many diamonds as possible to earn points!",
-  timerMinutes: 0.5,
+  gameTime: 1, //Minutes
   gameMode: GameMode.survival,
   dayOrNight: "day",
   difficulty: "easy",
@@ -35,12 +35,11 @@ const gameConfig = {
 };
 
 let blockBreakSubscription: any = null;
+let deathSubscription: any = null; // New subscription for death events
 let gameSetup: GameSetup | null = null;
 
 export function MinetheDiamonds(log: (message: string, status?: number) => void, StartLocation: DimensionLocation) {
   try {
-    // Clear the scoreboard at the start of the game
-    clearObjectives();
 
     // Initialize game state
     if (!world) throw new Error("World object is not available.");
@@ -54,6 +53,7 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
     gameSetup = new GameSetup(
       gameConfig.name,
       gameConfig.description,
+      gameConfig.gameTime,
       gameConfig.gameMode,
       gameConfig.dayOrNight,
       gameConfig.difficulty,
@@ -72,6 +72,10 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
     // Start the game
     gameSetup.startGame(gameState.players);
 
+    setupPlayerBreakListener();
+    setupPlayerDeathListener();
+
+
     // Start game loop
     runGameTick();
   } catch (error) {
@@ -79,6 +83,36 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
     world.sendMessage("Failed to start game due to an error.");
   }
 }
+
+function setupPlayerDeathListener() {
+  try {
+    if (!world) throw new Error("World object is not available.");
+
+    // Unsubscribe if already subscribed
+    if (deathSubscription) {
+      deathSubscription = null; // Reset the subscription
+    }
+
+    // Subscribe to the entityDie event
+    deathSubscription = world.afterEvents.entityDie.subscribe((eventData) => {
+      try {
+        const entity = eventData.deadEntity;
+
+        // Check if the entity that died is a player
+        if (entity instanceof Player && gameState.players.includes(entity)) {
+          world.sendMessage(`☠️ ${entity.name} has died!`);
+          endGame();
+
+        }
+      } catch (error) {
+        console.error(`❌ Error in death event handler: ${error}`);
+      }
+    });
+  } catch (error) {
+    console.error(`❌ Failed to set up death event listener: ${error}`);
+  }
+}
+
 function runGameTick() {
   try {
     if (!gameState) throw new Error("Game state is not initialized.");
@@ -95,17 +129,16 @@ function runGameTick() {
     gameState.curTick++;
 
     // Calculate time left in seconds
-    const timeLeft = Math.max(0, gameConfig.timerMinutes * 60 - Math.floor(gameState.curTick / 20));
+    const timeLeft = Math.max(0, gameConfig.gameTime * 60 - Math.floor(gameState.curTick / 20));
 
-    // Display the timer
+    // Update the timer display
     if (gameSetup) {
-      gameSetup.displayTimer(timeLeft);
+      gameSetup.displayTimer(gameState.players, timeLeft);
     }
 
     // Game logic
     if (gameState.curTick === 1) {
       world.sendMessage("Game Start! Mine as many diamond blocks as possible!");
-      setupPlayerBreakListener();
 
       // Spawn initial leaves and mobs
       placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:leaves");
@@ -121,14 +154,15 @@ function runGameTick() {
       }
 
       // Spawn additional leaves and mobs periodically
-      if (gameState.curTick % 100 === 0) { // Every 5 seconds (100 ticks)
+      if (gameState.curTick % 100 === 0) {
+        // Every 5 seconds (100 ticks)
         placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:leaves");
         spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, "minecraft:zombie");
       }
     }
 
     // Check end conditions
-    const timeLimit = gameConfig.timerMinutes * 60 * 20; // Convert minutes to ticks
+    const timeLimit = gameConfig.gameTime * 60 * 20; // Convert minutes to ticks
     if (gameState.curTick > timeLimit || activePlayers < gameConfig.minPlayers) {
       endGame();
       return;
@@ -146,22 +180,27 @@ function setupPlayerBreakListener() {
   try {
     if (!world) throw new Error("World object is not available.");
 
+    // Unsubscribe if already subscribed
     if (blockBreakSubscription) {
-      blockBreakSubscription.unsubscribe();
+      blockBreakSubscription = null; // Reset the subscription before reassigning
     }
 
     blockBreakSubscription = world.beforeEvents.playerBreakBlock.subscribe((eventData) => {
       try {
-        if (!eventData.block || !eventData.player) {
+        const player = eventData.player;
+        const block = eventData.block;
+
+        if (!block || !player ) {
           throw new Error("Invalid block break event data.");
         }
 
-        if (eventData.block.typeId === "minecraft:diamond_ore") {
+        if (block.typeId === "minecraft:diamond_ore") {
           gameState.lastOreDestroyed = true;
           gameState.missingDiamondBlocks++;
           gameState.score++;
-          world.sendMessage(`Diamond ore block mined! Score: ${gameState.score}`);
-          updatePlayerScore(eventData.player, gameState.score);
+
+          world.sendMessage(`Diamond ore block mined!`);
+          updatePlayerScore(player, gameState.score);
         }
       } catch (error) {
         console.error(`❌ Error in block break event handler: ${error}`);
@@ -176,19 +215,22 @@ function endGame() {
   try {
     if (!world) throw new Error("World object is not available.");
 
-  //  if (blockBreakSubscription) {
-  //    blockBreakSubscription.unsubscribe();
-  //    blockBreakSubscription = null; // Reset the subscription
-  //  }
+    // Unsubscribe from events
+    if (blockBreakSubscription) {
+      blockBreakSubscription = null;
+    }
+
+    if (deathSubscription) {
+      deathSubscription = null;
+    }
 
     world.sendMessage("Game Over! Thanks for playing!");
 
     if (gameSetup) {
-      gameSetup.endGame(gameState.players);
+      gameSetup.endGame(gameState.players, gameState.score);
     }
 
-    // Clear the scoreboard at the end of the game
-    clearObjectives();
+
 
     // Reset game state
     gameState.curTick = 0;
