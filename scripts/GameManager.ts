@@ -1,9 +1,9 @@
-import { GameMode, Player } from "@minecraft/server";
+import { GameMode, Player, DimensionLocation } from "@minecraft/server";
 import { setupArena, clearArena, teleportPlayersToArena } from "./ArenaManager";
 import { setupScoreboard, resetPlayerScores } from "./ScoreManager";
 import { setWorldSettings } from "./WorldManager";
-import { setupPlayers } from "./PlayerManager"; // Now handles inventory and game mode
-import { world, Vector3, DimensionLocation } from "@minecraft/server";
+import { setupPlayers } from "./PlayerManager";
+import { world } from "@minecraft/server";
 
 export class GameSetup {
   private gameName: string;
@@ -11,12 +11,12 @@ export class GameSetup {
   private gameMode: GameMode;
   private dayOrNight: string;
   private difficulty: string;
-  private lobbyLocation: Vector3;
-  private arenaLocation: Vector3;
-  private arenaSize: Vector3;
-  private arenaCenter: Vector3;
+  private lobbyLocation: { x: number; y: number; z: number };
+  private arenaLocation: { x: number; y: number; z: number };
+  private arenaSize: { x: number; y: number; z: number };
+  private arenaCenter: { x: number; y: number; z: number };
   private arenaLowerCorner: DimensionLocation;
-  private startingInventory: Array<{ item: string; count: number }> = [];
+  private startingInventory: Array<{ item: string; count: number }>;
 
   constructor(
     gameName: string,
@@ -24,10 +24,10 @@ export class GameSetup {
     gameMode: GameMode,
     dayOrNight: string,
     difficulty: string,
-    lobbyLocation: Vector3,
-    arenaLocation: Vector3,
-    arenaSize: Vector3,
-    arenaCenter: Vector3,
+    lobbyLocation: { x: number; y: number; z: number },
+    arenaLocation: { x: number; y: number; z: number },
+    arenaSize: { x: number; y: number; z: number },
+    arenaCenter: { x: number; y: number; z: number },
     arenaLowerCorner: DimensionLocation,
     startingInventory: Array<{ item: string; count: number }>
   ) {

@@ -1,11 +1,15 @@
-import { world, DimensionLocation, Vector3, Player, BlockPermutation } from "@minecraft/server";
+import { world, DimensionLocation, Player, BlockPermutation } from "@minecraft/server";
 import { MinecraftDimensionTypes } from "@minecraft/vanilla-data";
+
 /**
  * Set up the arena boundaries and structure.
- * @param arenaOffset The offset position for the arena
+ * @param arenaLocation The offset position for the arena ({ x, y, z })
  * @param arenaSize Dimensions of the arena ({ x, y, z })
  */
-export function setupArena(arenaLocation: Vector3, arenaSize: Vector3) {
+export function setupArena(
+  arenaLocation: { x: number; y: number; z: number },
+  arenaSize: { x: number; y: number; z: number }
+) {
   const dimension = world.getDimension(MinecraftDimensionTypes.Overworld);
 
   // Verify if the chunks at the arena's location are loaded
@@ -81,9 +85,9 @@ export function createArena(dimensions: ArenaDimensions) {
 /**
  * Clear the arena by removing all non-player entities and filling the arena area with air.
  * @param arenaLowerCorner The lower-corner (starting coordinate) of the arena
- * @param arenaSize Dimensions of the arena
+ * @param arenaSize Dimensions of the arena ({ x, y, z })
  */
-export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: Vector3) {
+export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: number; y: number; z: number }) {
   const { x, y, z, dimension } = arenaLowerCorner;
 
   // Validate arena size before proceeding.
@@ -110,11 +114,14 @@ export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: Vecto
 
 /**
  * Calculate the arena center based on the arena's lower-corner.
- * @param arenaOffset The starting position for the arena calculations
- * @param arenaSize Dimensions of the arena
- * @returns The center position of the arena
+ * @param arenaLocation The starting position for the arena calculations ({ x, y, z })
+ * @param arenaSize Dimensions of the arena ({ x, y, z })
+ * @returns The center position of the arena ({ x, y, z })
  */
-export function getArenaCenter(arenaLocation: Vector3, arenaSize: { x: number; y: number; z: number }): Vector3 {
+export function getArenaCenter(
+  arenaLocation: { x: number; y: number; z: number },
+  arenaSize: { x: number; y: number; z: number }
+): { x: number; y: number; z: number } {
   return {
     x: arenaLocation.x + arenaSize.x / 2 - 5,
     y: arenaLocation.y, // Example: Increase offset if players spawn underground
@@ -125,10 +132,14 @@ export function getArenaCenter(arenaLocation: Vector3, arenaSize: { x: number; y
 /**
  * Teleport all players to the arena center.
  * @param players The players to teleport
- * @param arenaCenter The center position of the arena
+ * @param arenaCenter The center position of the arena ({ x, y, z })
  * @param dimension The dimension to teleport players to
  */
-export function teleportPlayersToArena(players: Player[], arenaCenter: Vector3, dimension: any) {
+export function teleportPlayersToArena(
+  players: Player[],
+  arenaCenter: { x: number; y: number; z: number },
+  dimension: any
+) {
   players.forEach((player) => {
     console.warn(`Teleporting ${player.name} to: x=${arenaCenter.x}, y=${arenaCenter.y}, z=${arenaCenter.z}`);
     player.teleport(arenaCenter, dimension);
