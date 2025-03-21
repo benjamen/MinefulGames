@@ -1,34 +1,47 @@
-export class EventManager {
-    private subscriptions: any[] = [];
+//EventManager.ts
 
-    subscribe(event: any, callback: (eventData: any) => void) {
-        try {
-            // Store the subscription object, not the callback
-            const sub = event.subscribe(callback);
-            if (sub && typeof sub.unsubscribe === "function") {
-                this.subscriptions.push(sub);
-                console.log("✅ Event subscribed successfully.");
-            } else {
-                console.error("❌ Invalid subscription object:", sub);
-            }
-        } catch (error) {
-            console.error("❌ Failed to subscribe to event:", error);
+export class EventManager {
+    private subscriptions: Map<
+        {
+            subscribe: (callback: (arg: any) => void) => void;
+            unsubscribe: (callback: (arg: any) => void) => void;
+        },
+        Set<(arg: any) => void> // Explicitly type the callbacks
+    > = new Map();
+
+    subscribe<T>(
+        event: {
+            subscribe: (callback: (arg: T) => void) => void;
+            unsubscribe: (callback: (arg: T) => void) => void;
+        },
+        callback: (arg: T) => void
+    ) {
+        if (!this.subscriptions.has(event)) {
+            this.subscriptions.set(event, new Set());
+        }
+
+        const callbacks = this.subscriptions.get(event)!;
+        if (!callbacks.has(callback)) {
+            callbacks.add(callback);
+            event.subscribe(callback);
         }
     }
 
-    unsubscribeAll() {
-        this.subscriptions.forEach((sub, index) => {
-            try {
-                if (sub && typeof sub.unsubscribe === "function") {
-                    sub.unsubscribe();
-                    console.log("✅ Event unsubscribed successfully.");
-                } else {
-                    console.error("❌ Invalid subscription object at index:", index, sub);
+    public unsubscribeAll() {
+        console.log("Unsubscribing all events...");
+        for (const [event, callbacks] of this.subscriptions) {
+            console.log(`Unsubscribing ${callbacks.size} callbacks for event.`);
+            for (const cb of callbacks) {
+                try {
+                    event.unsubscribe(cb);
+                    console.log("Successfully unsubscribed callback.");
+                } catch (error) {
+                    console.error("Failed to unsubscribe:", error);
                 }
-            } catch (error) {
-                console.error("❌ Failed to unsubscribe:", error);
             }
-        });
-        this.subscriptions = [];
+            callbacks.clear();
+        }
+        this.subscriptions.clear();
+        console.log("All events unsubscribed.");
     }
 }

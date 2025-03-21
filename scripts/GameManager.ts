@@ -1,3 +1,5 @@
+//GameManager.ts
+
 import { GameMode, Player, DimensionLocation } from "@minecraft/server";
 import { setupArena, clearArena, teleportPlayersToLobby, teleportPlayersToArena } from "./ArenaManager";
 import { setupScoreboard, resetPlayerScores, clearObjectives } from "./ScoreManager";

@@ -1,3 +1,5 @@
+//PlayManager.ts
+
 import { Player, GameMode, EntityInventoryComponent, ItemStack } from "@minecraft/server";
 
 /**
