@@ -58,10 +58,10 @@ export class GameSetup {
     world.sendMessage(`${this.gameDescription}`);
 
     setWorldSettings(this.dayOrNight, this.difficulty);
-    setupArena(this.arenaLocation, this.arenaSize);
+    setupArena(this.arenaLocation, this.arenaSize,  { includeWalls: true, includeFloor: true, includeRoof: false });
 
     setupPlayers(players, this.startingInventory, this.gameMode);
-    teleportPlayersToArena(players, this.arenaLocation, "overworld");
+    teleportPlayersToArena(players, this.arenaCenter, "overworld");
 
     this.displayStartTimer(players, this.gameTime);
 
@@ -118,9 +118,6 @@ export class GameSetup {
 
   displayTimer(players: Player[], timeLeft: number) {
   try {
-    if (!players || players.length === 0) {
-      throw new Error("No players provided to display the timer.");
-    }
 
     // Display the timer in the action bar for each player
     players.forEach((player) => {

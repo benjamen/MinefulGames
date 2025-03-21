@@ -3,6 +3,17 @@ import { MinecraftDimensionTypes } from "@minecraft/vanilla-data";
 import { Vector3Utils } from "@minecraft/math";
 
 const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
+
+// Define the ArenaDimensions interface
+interface ArenaDimensions {
+  xOffset: number;
+  yOffset: number;
+  zOffset: number;
+  xSize: number;
+  ySize: number;
+  zSize: number;
+}
+
 /**
  * Set up the arena boundaries and structure.
  * @param arenaLocation The offset position for the arena ({ x, y, z })
@@ -10,7 +21,12 @@ const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
  */
 export function setupArena(
   arenaLocation: { x: number; y: number; z: number },
-  arenaSize: { x: number; y: number; z: number }
+  arenaSize: { x: number; y: number; z: number },
+  options: {
+    includeWalls?: boolean;
+    includeFloor?: boolean;
+    includeRoof?: boolean;
+  } = { includeWalls: true, includeFloor: true, includeRoof: true } // Default to including all components
 ) {
   // Verify if the chunks at the arena's location are loaded
   const testBlock = overworld.getBlock({
@@ -25,33 +41,34 @@ export function setupArena(
   }
 
   // Proceed with creating the arena since the chunks are loaded
-  createArena({
-    xOffset: arenaLocation.x,
-    yOffset: arenaLocation.y,
-    zOffset: arenaLocation.z,
-    xSize: arenaSize.x,
-    ySize: arenaSize.y,
-    zSize: arenaSize.z,
-  });
+  createArena(
+    {
+      xOffset: arenaLocation.x,
+      yOffset: arenaLocation.y,
+      zOffset: arenaLocation.z,
+      xSize: arenaSize.x,
+      ySize: arenaSize.y,
+      zSize: arenaSize.z,
+    },
+    options // Pass the options to createArena
+  );
 }
-
-interface ArenaDimensions {
-  xOffset: number;
-  yOffset: number;
-  zOffset: number;
-  xSize: number;
-  ySize: number;
-  zSize: number;
-}
-
 /**
  * Creates the arena structure with given parameters.
  * @param dimensions Arena creation parameters
  */
-export function createArena(dimensions: ArenaDimensions) {
+export function createArena(
+  dimensions: ArenaDimensions,
+  options: {
+    includeWalls?: boolean;
+    includeFloor?: boolean;
+    includeRoof?: boolean;
+  }
+) {
   let airBlockPerm = BlockPermutation.resolve("minecraft:air");
   let cobblestoneBlockPerm = BlockPermutation.resolve("minecraft:cobblestone");
 
+  // Clear the space inside the arena
   if (airBlockPerm) {
     fillBlock(
       airBlockPerm,
@@ -64,7 +81,20 @@ export function createArena(dimensions: ArenaDimensions) {
     );
   }
 
-  if (cobblestoneBlockPerm) {
+  // Create the floor (if enabled)
+  if (cobblestoneBlockPerm && options.includeFloor) {
+    fillFloor(
+      cobblestoneBlockPerm,
+      dimensions.xOffset - dimensions.xSize / 2,
+      dimensions.yOffset, // Floor starts at yOffset
+      dimensions.zOffset - dimensions.zSize / 2,
+      dimensions.xOffset + dimensions.xSize / 2,
+      dimensions.zOffset + dimensions.zSize / 2
+    );
+  }
+
+  // Create the four walls (if enabled)
+  if (cobblestoneBlockPerm && options.includeWalls) {
     fourWalls(
       cobblestoneBlockPerm,
       dimensions.xOffset - dimensions.xSize / 2,
@@ -76,8 +106,23 @@ export function createArena(dimensions: ArenaDimensions) {
     );
   }
 
+  // Create the roof (if enabled)
+  if (cobblestoneBlockPerm && options.includeRoof) {
+    fillRoof(
+      cobblestoneBlockPerm,
+      dimensions.xOffset - dimensions.xSize / 2,
+      dimensions.yOffset + dimensions.ySize, // Roof starts at yOffset + ySize
+      dimensions.zOffset - dimensions.zSize / 2,
+      dimensions.xOffset + dimensions.xSize / 2,
+      dimensions.zOffset + dimensions.zSize / 2
+    );
+  }
 }
-
+/**
+ * Clear the arena by removing all non-player entities and filling the arena area with air.
+ * @param arenaLowerCorner The lower-corner (starting coordinate) of the arena
+ * @param arenaSize Dimensions of the arena ({ x, y, z })
+ */
 /**
  * Clear the arena by removing all non-player entities and filling the arena area with air.
  * @param arenaLowerCorner The lower-corner (starting coordinate) of the arena
@@ -101,27 +146,13 @@ export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: 
     const fillCommand = `fill ${x} ${y} ${z} ${x + arenaSize.x} ${y + arenaSize.y} ${z + arenaSize.z} air`;
     dimension.runCommand(fillCommand);
 
+
   } catch (error) {
-    world.sendMessage(`⚠️ Failed to execute 'clearArena': ${error}`);
+    console.error(`⚠️ Failed to execute 'clearArena': ${error}`);
+    world.sendMessage(`⚠️ Failed to clear arena: ${error}`);
   }
 }
 
-/**
- * Calculate the arena center based on the arena's lower-corner.
- * @param arenaLocation The starting position for the arena calculations ({ x, y, z })
- * @param arenaSize Dimensions of the arena ({ x, y, z })
- * @returns The center position of the arena ({ x, y, z })
- */
-export function getArenaCenter(
-  arenaLocation: { x: number; y: number; z: number },
-  arenaSize: { x: number; y: number; z: number }
-): { x: number; y: number; z: number } {
-  return {
-    x: arenaLocation.x + arenaSize.x / 2 - 5,
-    y: arenaLocation.y, // Example: Increase offset if players spawn underground
-    z: arenaLocation.z + arenaSize.z / 2 - 5,
-  };
-}
 
 /**
  * Teleport all players to the arena center.
@@ -191,6 +222,30 @@ export function fillBlock(
       }
     }
   }
+}
+
+export function fillFloor(
+  blockPerm: any,
+  xFrom: number,
+  yFloor: number, // The y-coordinate where the floor starts
+  zFrom: number,
+  xTo: number,
+  zTo: number
+): void {
+  // Fill the floor from yFloor downwards (adjust yFrom and yTo as needed)
+  fillBlock(blockPerm, xFrom, yFloor, zFrom, xTo, yFloor, zTo);
+}
+
+export function fillRoof(
+  blockPerm: any,
+  xFrom: number,
+  yRoof: number, // The y-coordinate where the roof starts
+  zFrom: number,
+  xTo: number,
+  zTo: number
+): void {
+  // Fill the roof from yRoof upwards (adjust yFrom and yTo as needed)
+  fillBlock(blockPerm, xFrom, yRoof, zFrom, xTo, yRoof, zTo);
 }
 
 export function fourWalls(
