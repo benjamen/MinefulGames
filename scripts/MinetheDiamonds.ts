@@ -61,7 +61,7 @@ const gameConfig = {
     lobbyLocation: { x: 0, y: -60, z: 0 },
     arenaLocation: { 
         x: 25, 
-        y: -50, 
+        y: -40, 
         z: 0, 
         dimension: overworld // Add dimension
     },
@@ -105,6 +105,7 @@ const gameCore = new GameCore({
     levelConfigurations: levelConfigurations, // Pass level configurations
 });
 
+// Main game function
 // Main game function
 export function MinetheDiamonds(log: (message: string, status?: number) => void, StartLocation: DimensionLocation) {
     try {
@@ -153,7 +154,37 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
                 // Check if level goal is achieved
                 if (gameCore.score >= currentLevel.goal) {
                     world.sendMessage(`🎉 Level ${currentLevel.level} completed!`);
-                    gameCore.nextLevel(); // Call nextLevel from GameCore
+                    currentLevelIndex++; // Increment the level index
+                    if (currentLevelIndex < levelConfigurations.length) {
+                        currentLevel = levelConfigurations[currentLevelIndex]; // Update currentLevel
+                        world.sendMessage(`Starting Level ${currentLevel.level}: ${currentLevel.description}`);
+                        gameCore.startLevel(currentLevelIndex, (curTick) => {
+                            const timeLeft = Math.max(0, currentLevel.gameTime * 60 - Math.floor(curTick / 20));
+                            gameSetup?.displayTimer(gameCore.players, timeLeft);
+
+                            // Game-specific logic
+                            if (curTick === 1) {
+                                world.sendMessage("Game Start!");
+                                placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.randomBlockToPlace);
+                                spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.mobToSpawn);
+                            } else if (curTick === 100) {
+                                world.sendMessage("BREAK THE DIAMOND BLOCKS!");
+                                spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.blockToBreak);
+                            } else if (curTick > 100) {
+                                if (curTick % 20 === 0 && gameState.lastBlockDestroyed) {
+                                    spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.blockToBreak);
+                                    gameState.lastBlockDestroyed = false;
+                                }
+                                if (curTick % 100 === 0) {
+                                    placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.randomBlockToPlace);
+                                    spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.mobToSpawn);
+                                }
+                            }
+                        });
+                    } else {
+                        world.sendMessage("🎉 Congratulations! You have completed all levels!");
+                        gameCore.endGame(); // End the game if no more levels
+                    }
                 }
             }
         );
