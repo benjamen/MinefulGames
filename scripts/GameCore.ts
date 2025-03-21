@@ -1,4 +1,4 @@
-import { world, system, Player, GameMode, Dimension, Container } from "@minecraft/server"; 
+import { world, system, Player, GameMode, Dimension, Container } from "@minecraft/server";
 import { EventManager } from "./EventManager";
 import { clearArena } from "./ArenaManager";
 
@@ -9,6 +9,9 @@ export class GameCore {
     public eventManager: EventManager = new EventManager();
     private gameLoopId: number | undefined = undefined;
     private isEndingGame: boolean = false;
+    private isLevelActive: boolean = false; // Track if a level is active
+    public currentLevelIndex: number = 0; // Track the current level index
+    public levelConfigurations: any[] = []; // Store level configurations
 
     constructor(
         public gameConfig: {
@@ -19,13 +22,17 @@ export class GameCore {
             arenaSize: { x: number; y: number; z: number };
             defaultGamemode: GameMode;
             lobbyLocation: { x: number; y: number; z: number };
+            levelConfigurations: any[]; // Add level configurations to the constructor
         }
-    ) {}
+    ) {
+        this.levelConfigurations = gameConfig.levelConfigurations || [];
+    }
 
     // Start the game loop
     public startGameLoop(tickCallback: (curTick: number) => void) {
         // Reset the ending game flag
         this.isEndingGame = false;
+        this.isLevelActive = true;
 
         const runGameTick = () => {
             try {
@@ -56,6 +63,23 @@ export class GameCore {
         console.log("✅ Game loop started");
     }
 
+    // End the current level
+    public endLevel() {
+        this.isLevelActive = false;
+        this.score = 0; // Reset score for the next level
+        this.stopGameLoop(); // Stop the current game loop
+        world.sendMessage(`Level ${this.currentLevelIndex + 1} ended!`);
+    }
+
+    // Start a new level
+    public startLevel(levelIndex: number, tickCallback: (curTick: number) => void) {
+        this.currentLevelIndex = levelIndex;
+        this.isLevelActive = true;
+        this.score = 0; // Reset score for the new level
+        world.sendMessage(`Starting Level ${this.currentLevelIndex + 1}: ${this.levelConfigurations[levelIndex].description}`);
+        this.startGameLoop(tickCallback); // Start the game loop with the provided callback
+    }
+
     // End the game
     public endGame() {
         // Prevent multiple endGame calls
@@ -63,11 +87,11 @@ export class GameCore {
             console.log("⚠️ Game is already ending, ignoring duplicate endGame call");
             return;
         }
-        
+
         // Set flag to prevent duplicate calls
         this.isEndingGame = true;
         console.log("Ending game and cleaning up...");
-        
+
         try {
             // We don't need to explicitly cancel the game loop
             // Just setting the flag and not scheduling the next tick is sufficient
@@ -79,7 +103,7 @@ export class GameCore {
 
             // Send a message before processing
             world.sendMessage("Game Over! Cleaning up...");
-            
+
             // First clear the arena (with a small delay to ensure game is stopped)
             system.runTimeout(() => {
                 try {
@@ -90,70 +114,68 @@ export class GameCore {
                         z: this.gameConfig.arenaLocation.z - Math.floor(this.gameConfig.arenaSize.z / 2),
                         dimension: this.gameConfig.arenaLocation.dimension
                     }, this.gameConfig.arenaSize);
-                    
+
                     console.log("✅ Arena cleared");
                 } catch (arenaError) {
                     console.error(`❌ Error clearing arena: ${arenaError instanceof Error ? arenaError.message : arenaError}`);
                 }
-                
+
                 // Then reset players (with delay to ensure arena is cleared)
                 system.runTimeout(() => {
                     // Create a copy of players array to avoid modification during iteration
                     const playersToReset = [...this.players];
                     console.log(`Resetting ${playersToReset.length} players`);
-                    
+
                     // Reset players one by one with a slight delay between them
                     const resetPlayerAtIndex = (index: number) => {
                         if (index >= playersToReset.length) {
                             // All players processed, finish up
                             console.log("✅ All players processed");
-                            
+
                             // Final confirmation message
                             world.sendMessage("Thanks for playing!");
-                            
+
                             // Reset game state
                             this.resetGameState();
                             return;
                         }
-                        
+
                         const player = playersToReset[index];
                         if (player && player.isValid()) {
                             try {
                                 console.log(`Processing player ${player.name}...`);
-                                
+
                                 // Clear inventory first
                                 this.clearPlayerInventory(player);
-                                
+
                                 // Set gamemode
-                                // Assuming player.setGameMode is a valid method and 'creative' is a valid game mode value
                                 player.setGameMode(GameMode.creative); // Set the player's game mode to creative
                                 console.log(`✅ Set gamemode for ${player.name} to creative`);
-                                
+
                                 // Teleport player to lobby
                                 player.teleport(
-                                    { 
-                                        x: this.gameConfig.lobbyLocation.x, 
-                                        y: this.gameConfig.lobbyLocation.y, 
-                                        z: this.gameConfig.lobbyLocation.z 
-                                    }, 
-                                    { 
-                                        dimension: this.gameConfig.arenaLocation.dimension 
+                                    {
+                                        x: this.gameConfig.lobbyLocation.x,
+                                        y: this.gameConfig.lobbyLocation.y,
+                                        z: this.gameConfig.lobbyLocation.z
+                                    },
+                                    {
+                                        dimension: this.gameConfig.arenaLocation.dimension
                                     }
                                 );
                                 console.log(`✅ Teleported ${player.name} to lobby`);
 
-                                 // Remove game tags
+                                // Remove game tags
                                 player.removeTag("MTD");
 
-              
-                                 // Clear the player's scoreboard for the "score" objective
+                                // Clear the player's scoreboard for the "score" objective
                                 try {
                                     player.runCommand(`scoreboard players reset @a[name="${player.name}"] score`);
                                     console.log(`✅ Cleared scoreboard for ${player.name}`);
                                 } catch (error) {
                                     console.error(`❌ Failed to clear scoreboard for ${player.name}: ${error instanceof Error ? error.message : error}`);
                                 }
-                                
+
                                 // Hide the scoreboard sidebar for the player
                                 try {
                                     player.runCommand(`scoreboard objectives setdisplay sidebar`);
@@ -161,8 +183,7 @@ export class GameCore {
                                 } catch (error) {
                                     console.error(`❌ Failed to remove scoreboard sidebar for ${player.name}: ${error instanceof Error ? error.message : error}`);
                                 }
-    
-                                
+
                                 // Process next player
                                 system.runTimeout(() => resetPlayerAtIndex(index + 1), 5);
                             } catch (playerError) {
@@ -175,13 +196,13 @@ export class GameCore {
                             system.runTimeout(() => resetPlayerAtIndex(index + 1), 5);
                         }
                     };
-                    
+
                     // Start processing players
                     resetPlayerAtIndex(0);
-                    
+
                 }, 10); // Short delay for player processing
             }, 10); // Short delay for arena clearing
-            
+
         } catch (error) {
             console.error(`❌ Error during game cleanup: ${error instanceof Error ? error.message : error}`);
             // Attempt to reset game state even if there was an error
@@ -195,6 +216,8 @@ export class GameCore {
         this.score = 0;
         this.players = [];
         this.isEndingGame = false;
+        this.isLevelActive = false;
+        this.currentLevelIndex = 0;
         console.log("✅ Game state reset.");
     }
 
@@ -212,7 +235,7 @@ export class GameCore {
                     console.error(`❌ Failed to clear inventory with command: ${commandError}`);
                     // Fall back to manual clearing
                 }
-                
+
                 // Manual inventory clearing
                 for (let i = 0; i < inventory.size; i++) {
                     try {
@@ -230,4 +253,27 @@ export class GameCore {
         }
     }
 
+    // Stop the game loop
+    private stopGameLoop() {
+        if (this.gameLoopId !== undefined) {
+            system.clearRun(this.gameLoopId);
+            this.gameLoopId = undefined;
+            console.log("✅ Game loop stopped");
+        }
+    }
+
+    // Handle level transitions
+    public nextLevel() {
+        this.endLevel(); // End the current level
+
+        this.currentLevelIndex++;
+        if (this.currentLevelIndex < this.levelConfigurations.length) {
+            this.startLevel(this.currentLevelIndex, (curTick) => {
+                // Add level-specific logic here if needed
+            });
+        } else {
+            world.sendMessage("🎉 Congratulations! You have completed all levels!");
+            this.endGame(); // End the game if no more levels
+        }
+    }
 }

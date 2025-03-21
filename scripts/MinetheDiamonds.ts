@@ -5,7 +5,6 @@ import { updatePlayerScore } from "./ScoreManager";
 import { getArenaCenter, getArenaLowerCorner } from "./ArenaHelper";
 import { GameCore } from "./GameCore";
 import { setupPlayerBreakListener, setupPlayerDeathListener } from "./EventListenersManager";
-import { startGameLoop } from "./GameLoopManager"; // Import the updated startGameLoop
 
 class GameState {
     missingBlocks: number = 0;
@@ -15,6 +14,41 @@ class GameState {
 const gameState = new GameState();
 const overworld = world.getDimension("overworld");
 
+// Define level configurations
+const levelConfigurations = [
+    {
+        level: 1,
+        description: "Mine 10 diamond blocks to complete this level!",
+        goal: 1,
+        blockToBreak: "minecraft:diamond_ore",
+        mobToSpawn: "minecraft:zombie",
+        randomBlockToPlace: "minecraft:leaves",
+        gameTime: 1, // Minutes
+    },
+    {
+        level: 2,
+        description: "Mine 20 diamond blocks while avoiding creepers!",
+        goal: 20,
+        blockToBreak: "minecraft:diamond_ore",
+        mobToSpawn: "minecraft:creeper",
+        randomBlockToPlace: "minecraft:stone",
+        gameTime: 2, // Minutes
+    },
+    {
+        level: 3,
+        description: "Mine 30 diamond blocks with limited time!",
+        goal: 30,
+        blockToBreak: "minecraft:diamond_ore",
+        mobToSpawn: "minecraft:skeleton",
+        randomBlockToPlace: "minecraft:obsidian",
+        gameTime: 3, // Minutes
+    }
+];
+
+let currentLevelIndex = 0;
+let currentLevel = levelConfigurations[currentLevelIndex];
+
+// Define game configuration
 const gameConfig = {
     name: "Mine the Diamonds!",
     description: "Mine as many diamonds as possible to earn points!",
@@ -58,6 +92,8 @@ const gameConfig = {
 };
 
 let gameSetup: GameSetup | null = null;
+
+// Initialize GameCore
 const gameCore = new GameCore({
     gameTime: gameConfig.gameTime,
     minPlayers: gameConfig.minPlayers,
@@ -65,8 +101,11 @@ const gameCore = new GameCore({
     arenaLocation: gameConfig.arenaLocation,
     arenaSize: gameConfig.arenaSize,
     defaultGamemode: gameConfig.defaultGamemode,
-    lobbyLocation: gameConfig.lobbyLocation, // Add lobbyLocation
+    lobbyLocation: gameConfig.lobbyLocation,
+    levelConfigurations: levelConfigurations, // Pass level configurations
 });
+
+// Main game function
 export function MinetheDiamonds(log: (message: string, status?: number) => void, StartLocation: DimensionLocation) {
     try {
         // Initialize game state
@@ -80,8 +119,8 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
         // Create game setup instance
         gameSetup = new GameSetup(
             gameConfig.name,
-            gameConfig.description,
-            gameConfig.gameTime,
+            currentLevel.description, // Use current level description
+            currentLevel.gameTime, // Use current level game time
             gameConfig.gameMode,
             gameConfig.dayOrNight,
             gameConfig.difficulty,
@@ -103,13 +142,19 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
         // Set up event listeners
         setupPlayerBreakListener(
             gameCore.eventManager,
-            gameConfig.blockToBreak,
+            currentLevel.blockToBreak, // Use current level block to break
             (player, blockType) => {
                 gameState.lastBlockDestroyed = true;
                 gameState.missingBlocks++;
                 gameCore.score++;
                 world.sendMessage(`Block mined!`);
                 updatePlayerScore(player, gameCore.score);
+
+                // Check if level goal is achieved
+                if (gameCore.score >= currentLevel.goal) {
+                    world.sendMessage(`🎉 Level ${currentLevel.level} completed!`);
+                    gameCore.nextLevel(); // Call nextLevel from GameCore
+                }
             }
         );
 
@@ -118,32 +163,31 @@ export function MinetheDiamonds(log: (message: string, status?: number) => void,
             gameCore.players,
             (player) => {
                 world.sendMessage(`☠️ ${player.name} has died!`);
-                // Call endGame via gameCore instead of directly
-                gameCore.endGame();
+                gameCore.endGame(); // End the game if a player dies
             }
         );
 
-        // Start game loop using the gameCore method
-        gameCore.startGameLoop((curTick) => {
-            const timeLeft = Math.max(0, gameConfig.gameTime * 60 - Math.floor(curTick / 20));
+        // Start the first level
+        gameCore.startLevel(currentLevelIndex, (curTick) => {
+            const timeLeft = Math.max(0, currentLevel.gameTime * 60 - Math.floor(curTick / 20));
             gameSetup?.displayTimer(gameCore.players, timeLeft);
 
             // Game-specific logic
             if (curTick === 1) {
                 world.sendMessage("Game Start!");
-                placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, gameConfig.randomBlockToPlace);
-                spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, gameConfig.mobToSpawn);
+                placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.randomBlockToPlace);
+                spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.mobToSpawn);
             } else if (curTick === 100) {
                 world.sendMessage("BREAK THE DIAMOND BLOCKS!");
-                spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, gameConfig.blockToBreak);
+                spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.blockToBreak);
             } else if (curTick > 100) {
                 if (curTick % 20 === 0 && gameState.lastBlockDestroyed) {
-                    spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, gameConfig.blockToBreak);
+                    spawnBlockWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.blockToBreak);
                     gameState.lastBlockDestroyed = false;
                 }
                 if (curTick % 100 === 0) {
-                    placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, gameConfig.randomBlockToPlace);
-                    spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, gameConfig.mobToSpawn);
+                    placeRandomBlocksWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.randomBlockToPlace);
+                    spawnMobsWithinArena(gameConfig.arenaLocation, gameConfig.arenaSize, currentLevel.mobToSpawn);
                 }
             }
         });
