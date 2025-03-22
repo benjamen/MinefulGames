@@ -1,31 +1,16 @@
-// EventListenersManager.ts
-import { world, Player } from "@minecraft/server";
-import { EventManager } from "./EventManager";
+import { world } from "@minecraft/server";
 
-export function setupPlayerBreakListener(
-    eventManager: EventManager,
-    blockToBreak: string,
-    onBlockBreak: (player: Player, blockType: string) => void
-) {
-    eventManager.subscribe(world.beforeEvents.playerBreakBlock, (eventData) => {
-        const player = eventData.player;
-        const block = eventData.block;
+export class EventManager {
+    private subscriptions: Map<string, Function[]> = new Map();
 
-        if (block.typeId === blockToBreak) {
-            onBlockBreak(player, block.typeId);
+    subscribe(event: any, callback: Function) {
+        const eventName = event.constructor.name;
+        if (!this.subscriptions.has(eventName)) {
+            this.subscriptions.set(eventName, []);
+            event.subscribe((e: any) => {
+                this.subscriptions.get(eventName)?.forEach(cb => cb(e));
+            });
         }
-    });
-}
-
-export function setupPlayerDeathListener(
-    eventManager: EventManager,
-    players: Player[],
-    onPlayerDeath: (player: Player) => void
-) {
-    eventManager.subscribe(world.afterEvents.entityDie, (eventData) => {
-        const entity = eventData.deadEntity;
-        if (entity instanceof Player && players.includes(entity)) {
-            onPlayerDeath(entity);
-        }
-    });
+        this.subscriptions.get(eventName)?.push(callback);
+    }
 }

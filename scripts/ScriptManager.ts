@@ -1,11 +1,11 @@
-import { world, system, DimensionLocation, ScriptEventCommandMessageAfterEvent } from "@minecraft/server";
+import { world, system, DimensionLocation, ScriptEventCommandMessageAfterEvent, Player } from "@minecraft/server";
 
 export default class ScriptManager {
   tickCount = 0;
 
   _availableFuncs: {
     [name: string]: Array<(log: (message: string, status?: number) => void, location: DimensionLocation) => void>;
-  };
+  } = {};
 
   pendingFuncs: Array<{
     name: string;
@@ -29,27 +29,35 @@ export default class ScriptManager {
     const [command, gameName] = messageId.split(":");
 
     if (command === "run" && gameName && scriptEvent.sourceEntity) {
-      const nearbyBlock = scriptEvent.sourceEntity.getBlockFromViewDirection();
-      if (!nearbyBlock) {
-        this.gamePlayLogger("Please look at the block where you want me to run this.");
-        return;
-      }
+      const sourceEntity = scriptEvent.sourceEntity;
+      if (sourceEntity instanceof Player) {
+        const player = sourceEntity;
+        const tag = gameName.toUpperCase(); // e.g., "MTD"
+        if (!player.hasTag(tag)) {
+          player.addTag(tag);
+          this.gamePlayLogger(`Added ${tag} tag to player ${player.name}`, 1);
+        }
 
-      const nearbyBlockLoc = nearbyBlock.block.location;
-      const nearbyLoc = {
-        x: nearbyBlockLoc.x,
-        y: nearbyBlockLoc.y + 1,
-        z: nearbyBlockLoc.z,
-        dimension: scriptEvent.sourceEntity.dimension,
-      };
+        // Use player's location (optional, adjust as needed)
+        const playerLoc = player.location;
+        const nearbyLoc = {
+          x: Math.floor(playerLoc.x),
+          y: Math.floor(playerLoc.y),
+          z: Math.floor(playerLoc.z),
+          dimension: player.dimension
+        };
 
-      const normalizedGameName = gameName.toLowerCase();
-      if (this._availableFuncs[normalizedGameName]) {
-        const GameFunctions = this._availableFuncs[normalizedGameName];
-        this.runSample(`${normalizedGameName}${this.tickCount}`, GameFunctions, nearbyLoc);
-        this.gamePlayLogger(`Successfully started ${gameName}.`, 1);
+        // Run the game function
+        const normalizedGameName = gameName.toLowerCase();
+        if (this._availableFuncs[normalizedGameName]) {
+          const GameFunctions = this._availableFuncs[normalizedGameName];
+          this.runSample(`${normalizedGameName}${this.tickCount}`, GameFunctions, nearbyLoc);
+          this.gamePlayLogger(`Successfully started ${gameName}.`, 1);
+        } else {
+          this.gamePlayLogger(`Unknown game: ${gameName}`, -1);
+        }
       } else {
-        this.gamePlayLogger(`Unknown game: ${gameName}`, -1);
+        this.gamePlayLogger("Only players can start the game.", -1);
       }
     }
   }

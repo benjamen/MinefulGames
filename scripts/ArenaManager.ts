@@ -1,6 +1,7 @@
-import { world, DimensionLocation, Player, BlockPermutation } from "@minecraft/server";
+import { world, DimensionLocation, Player, BlockPermutation, Dimension } from "@minecraft/server";
 import { MinecraftDimensionTypes } from "@minecraft/vanilla-data";
 import { Vector3Utils } from "@minecraft/math";
+
 
 const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
 
@@ -228,43 +229,43 @@ export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: 
  * @param dimension The dimension to teleport players to
  */
 
+// Updated teleport functions to handle dimensions properly
 export function teleportPlayersToArena(
   players: Player[],
   arenaCenter: { x: number; y: number; z: number },
-  dimension: string
+  dimension: Dimension
 ) {
   try {
+    // Calculate the safe Y-coordinate above the floor
+    const safeY = arenaCenter.y + 1; // Teleport players 1 block above the floor
 
     players.forEach((player) => {
-      if (player && player.isValid()) {
-        player.teleport(arenaCenter, { dimension: overworld });
-        player.sendMessage("🚀 Teleporting you to the game area!");
-      } else {
-        console.warn("Invalid player:", player);
+      if (player?.isValid()) {
+        // Teleport the player to the safe Y-coordinate
+        player.teleport(
+          { x: arenaCenter.x, y: safeY, z: arenaCenter.z },
+          { dimension }
+        );
       }
     });
   } catch (error) {
-    console.error("Error teleporting players to arena:", error);
+    console.error("Teleport error:", error);
   }
 }
 
 export function teleportPlayersToLobby(
   players: Player[],
   lobbyLocation: { x: number; y: number; z: number },
-  dimension: string
+  dimension: Dimension // Changed to Dimension type instead of string
 ) {
   try {
-
     players.forEach((player) => {
-      if (player && player.isValid()) {
-        player.teleport(lobbyLocation, { dimension: overworld });
-        player.sendMessage("🚀 Teleporting you to the Lobby!");
-      } else {
-        console.warn("Invalid player:", player);
+      if (player?.isValid()) {
+        player.teleport(lobbyLocation, { dimension });
       }
     });
   } catch (error) {
-    console.error("Error teleporting players to arena:", error);
+    console.error("Teleport error:", error);
   }
 }
 
