@@ -33,66 +33,48 @@ export class LevelManager {
         }
     }
 
-    private spawnMobs(dimension: Dimension) {
+    private async spawnMobs(dimension: Dimension) {
         try {
             const arena = this.game.config.arenaLocation;
-            const size = this.game.config.arenaSize;
-            const spawnDimension = this.game.config.arenaLocation.dimension;
-    
-            // 1. Force-load chunks to ensure spawning area is active
-            spawnDimension.runCommand(`forceload add ${arena.x - 16} ${arena.z - 16} ${arena.x + 16} ${arena.z + 16}`);
-    
-            // 2. Case-insensitive entity type handling
-            const entityId = this.game.currentLevel.mobToSpawn.toLowerCase().replace("minecraft:", "");
-            const EntityType = MinecraftEntityTypes[entityId as keyof typeof MinecraftEntityTypes];
             
-            if (!EntityType) {
-                console.error(`Invalid mob type: ${entityId}. Valid options: ${Object.keys(MinecraftEntityTypes).join(", ")}`);
-                return;
-            }
+            // Spawn mobs
+            const mobsToSpawn = [
+                { type: MinecraftEntityTypes.Zombie, count: 3 },
+                { type: MinecraftEntityTypes.Skeleton, count: 2 }
+            ];
     
-            // 3. Corrected spawn logic
-            const spawnCount = 3;
-            console.log(`Spawning ${spawnCount} ${entityId} at Y=${arena.y + 1}`);
+            for (const mob of mobsToSpawn) {
+                for (let i = 0; i < mob.count; i++) {
+                    const spawnPos = this.randomArenaPosition();
+                    
+                    try {
+                        // Spawn the mob using proper Bedrock 1.21 syntax
+                        await dimension.runCommandAsync(
+                            `summon ${mob.type} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
+                        );
     
-            for (let i = 0; i < spawnCount; i++) {
-                // Calculate valid positions within arena bounds
-                const offsetX = (Math.random() * (size.x - 4)) - (size.x / 2 - 2);
-                const offsetZ = (Math.random() * (size.z - 4)) - (size.z / 2 - 2);
-                
-                const spawnPos = {
-                    x: arena.x + Math.floor(offsetX) + 0.5, // Center in block
-                    y: arena.y + 1, // 1 block above floor
-                    z: arena.z + Math.floor(offsetZ) + 0.5
-                };
-    
-                // 4. Validate floor block (fix: cobblestone is valid)
-                const floorPos = { 
-                    x: Math.floor(spawnPos.x), 
-                    y: arena.y, 
-                    z: Math.floor(spawnPos.z) 
-                };
-                const floorBlock = spawnDimension.getBlock(floorPos);
-                
-                // Only reject non-solid blocks (e.g., air, leaves)
-                if (!floorBlock || ["minecraft:air", "minecraft:leaves"].includes(floorBlock.typeId)) {
-                    console.warn(`Invalid floor at ${floorPos.x},${floorPos.y},${floorPos.z} (${floorBlock?.typeId})`);
-                    continue;
-                }
-    
-                // 5. Spawn entity with error handling
-                try {
-                    const entity = spawnDimension.spawnEntity(entityId, spawnPos);
-                    console.log(`Spawned ${entityId} at ${JSON.stringify(spawnPos)}`);
-                } catch (error) {
-                    console.error(`Failed to spawn at ${JSON.stringify(spawnPos)}:`, error);
+                        // Add equipment using proper Bedrock 1.21 syntax
+                        if (mob.type === MinecraftEntityTypes.Zombie) {
+                            await dimension.runCommandAsync(
+                                `give @e[type=${mob.type},x=${spawnPos.x},y=${spawnPos.y},z=${spawnPos.z},r=1] iron_sword`
+                            );
+                        }
+                        if (mob.type === MinecraftEntityTypes.Skeleton) {
+                            await dimension.runCommandAsync(
+                                `give @e[type=${mob.type},x=${spawnPos.x},y=${spawnPos.y},z=${spawnPos.z},r=1] bow`
+                            );
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to spawn ${mob.type}:`, error);
+                    }
                 }
             }
+    
         } catch (error) {
             console.error("Mob spawning failed:", error);
         }
     }
-
+    
     public cleanup() {
         console.log("LevelManager cleanup");
         if (this.mobSpawnInterval) {
