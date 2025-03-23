@@ -51,6 +51,7 @@ export class GameCore {
     }
 
     public startGame() {
+
         setWorldSettings("day");
         clearArena(this.config.arenaLocation, this.config.arenaSize);
         setupArena(
@@ -142,7 +143,7 @@ export class GameCore {
 
     private startLevel() {
 
-        this.remainingTime = this.currentLevel.gameTime * 20; // Now uses seconds directly
+        this.remainingTime = this.currentLevel.gameTime * 20; // ✅ Converts seconds to ticks
 
         this.players.forEach(player => {
             player.sendMessage(`§eStarting Level ${this.currentLevelIndex + 1}: §f${this.currentLevel.description}`);

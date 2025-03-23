@@ -28,29 +28,23 @@ export class LevelManager {
 
 
 
- private spawnEntity(dimension: Dimension) {
+    private spawnEntity(dimension: Dimension) {
         const arena = this.game.config.arenaLocation;
         const size = this.game.config.arenaSize;
-
-        // Get the mob type from the current level configuration
-        const mobType = this.game.currentLevel.mobToSpawn;
-
-        // Spawn 1-2 mobs
+    
+        // Spawn mobs on the ARENA FLOOR (y = arena.y)
         const spawnCount = Math.floor(Math.random() * 2) + 1;
-
+    
         for (let i = 0; i < spawnCount; i++) {
-            // Calculate random position within the arena
             const x = arena.x + Math.floor(Math.random() * size.x) - Math.floor(size.x / 2);
             const z = arena.z + Math.floor(Math.random() * size.z) - Math.floor(size.z / 2);
-            const y = arena.y + 1; // Spawn 1 block above the arena floor
-
+            const y = arena.y; // Spawn directly on the arena floor
+    
+    
             try {
-                console.log(`Dimension ${dimension} at ${x},${y},${z}`);
-                // Spawn the mob using the entity type from the level configuration
-                dimension.spawnEntity(mobType, { x, y, z });
-                console.log(`Spawned ${mobType} at ${x},${y},${z}`);
+                dimension.spawnEntity(this.game.currentLevel.mobToSpawn, { x, y: y + 1, z }); // Spawn 1 block above floor
             } catch (error) {
-                console.error(`Failed to spawn ${mobType}:`, error);
+                console.error(`Failed to spawn mob:`, error);
             }
         }
     }
