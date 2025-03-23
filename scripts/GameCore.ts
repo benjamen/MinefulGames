@@ -142,7 +142,7 @@ export class GameCore {
 
     private startLevel() {
 
-        this.remainingTime = this.currentLevel.gameTime * 60 * 20;
+        this.remainingTime = this.currentLevel.gameTime * 20; // Now uses seconds directly
 
         this.players.forEach(player => {
             player.sendMessage(`§eStarting Level ${this.currentLevelIndex + 1}: §f${this.currentLevel.description}`);
