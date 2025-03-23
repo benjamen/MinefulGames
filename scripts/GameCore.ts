@@ -1,7 +1,7 @@
-import { world, system, GameMode, Dimension, Player, ItemStack, EntityInventoryComponent } from "@minecraft/server";
+import { world, system, GameMode, Dimension, Player, ItemStack, EntityInventoryComponent, DisplaySlotId } from "@minecraft/server";
 import { LevelManager } from "./LevelManager";
 import { PlayerManager } from "./PlayerManager";
-import { setupScoreboard, updatePlayerScore } from "./ScoreManager";
+import { setupScoreboard, updatePlayerScore, resetScoreboard } from "./ScoreManager";
 import { EventManager } from "./EventManager";
 import { clearArena, setupArena } from "./ArenaManager";
 import { setWorldSettings } from "./WorldManager";
@@ -9,6 +9,7 @@ import { setWorldSettings } from "./WorldManager";
 export class GameCore {
     // Game state
     public score = 0;
+    public totalScore = 0; // Track cumulative score across levels
     public lives: number;
     public currentLevelIndex = 0;
     public players: Player[] = [];
@@ -51,7 +52,6 @@ export class GameCore {
     }
 
     public startGame() {
-
         setWorldSettings("day");
         clearArena(this.config.arenaLocation, this.config.arenaSize);
         setupArena(
@@ -66,19 +66,14 @@ export class GameCore {
         this.startLevel();
     }
 
-   
     private initializePlayers() {
         this.players = world.getAllPlayers().filter(p => p.hasTag("MTD"));
         this.players.forEach(player => {
             system.run(() => {
-                // Cast to EntityInventoryComponent to access the container
                 const inventory = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
                 
                 if (inventory?.container) {
-                    // Clear inventory
                     inventory.container.clearAll();
-                    
-                    // Add starting items
                     this.config.startingInventory.forEach(item => {
                         const itemStack = new ItemStack(item.item, item.count);
                         inventory.container?.addItem(itemStack);
@@ -87,7 +82,6 @@ export class GameCore {
                     console.error("Failed to access player inventory container");
                 }
 
-                // Teleport and gamemode code remains the same
                 player.runCommand(`gamemode ${this.config.defaultGamemode}`);
                 const spawnPoint = {
                     x: this.config.arenaLocation.x,
@@ -119,7 +113,8 @@ export class GameCore {
     private handleBlockBreak(player: Player) {
         system.run(() => {
             this.score++;
-            updatePlayerScore(player, this.config.scoreboardConfig.objectiveId, this.score);
+            this.totalScore++;
+            updatePlayerScore(player, this.config.scoreboardConfig.objectiveId, 1);
             this.levelManager.initializeLevel();
             
             if (this.score >= this.currentLevel.goal) {
@@ -142,8 +137,8 @@ export class GameCore {
     }
 
     private startLevel() {
-
-        this.remainingTime = this.currentLevel.gameTime * 20; // ✅ Converts seconds to ticks
+        this.remainingTime = this.currentLevel.gameTime * 20;
+        console.log(`Starting level ${this.currentLevelIndex + 1} with ${this.remainingTime} ticks`);
 
         this.players.forEach(player => {
             player.sendMessage(`§eStarting Level ${this.currentLevelIndex + 1}: §f${this.currentLevel.description}`);
@@ -157,30 +152,29 @@ export class GameCore {
         this.levelTimeout = system.runTimeout(() => this.handleLevelTimeout(), this.remainingTime);
     }
 
-    // In gameTick()
     private gameTick() {
-    if (this.remainingTime <= 0) return;
-    
-    this.remainingTime--;
-    const totalSeconds = Math.ceil(this.remainingTime / 20);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    
-    this.players.forEach(player => {
-        player.onScreenDisplay.setActionBar(
-            `Level: ${this.currentLevelIndex + 1} | ` +
-            `Time: ${minutes}:${seconds.toString().padStart(2, '0')} | ` +
-            `Lives: ${this.lives} | ` +
-            `Score: ${this.score}/${this.currentLevel.goal}`
-        );
-    });
+        if (this.remainingTime <= 0) return;
+        
+        this.remainingTime -= 20;
+        const totalSeconds = Math.floor(this.remainingTime / 20);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        
+        this.players.forEach(player => {
+            player.onScreenDisplay.setActionBar(
+                `Level: ${this.currentLevelIndex + 1} | ` +
+                `Time: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} | ` +
+                `Lives: ${this.lives} | ` +
+                `Score: ${this.score}/${this.currentLevel.goal}`
+            );
+        });
 
-    if (this.remainingTime <= 0) {
-        this.handleLevelTimeout();
+        if (this.remainingTime <= 0) {
+            this.handleLevelTimeout();
+        }
     }
-}
-    
-private handleLevelTimeout() {
+
+    private handleLevelTimeout() {
         world.sendMessage("Time's up!");
         this.endGame();
     }
@@ -191,33 +185,56 @@ private handleLevelTimeout() {
             return;
         }
 
-        const levelCompleteMsg = `§a§lLevel ${this.currentLevelIndex + 1} Complete!`;
-        this.players.forEach(player => {
-            player.sendMessage(levelCompleteMsg);
-            player.runCommand("playsound random.levelup @s");
-        });
-        
         this.currentLevelIndex++;
         this.score = 0;
+        this.players.forEach(player => {
+            player.sendMessage(`§a§lLevel ${this.currentLevelIndex} Complete!`);
+            player.runCommand("playsound random.levelup @s");
+        });
         system.runTimeout(() => this.startLevel(), 60);
     }
 
     private endGame(success = false) {
+        // Cleanup players
+        this.players.forEach(player => {
+            try {
+                // Clear inventory
+                const inv = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
+                inv.container?.clearAll();
+                
+                // Reset gamemode
+                player.runCommand(`gamemode creative`);
+                
+                // Teleport and reset score
+                player.teleport(this.config.lobbyLocation);
+                player.runCommand("scoreboard players reset @s mtd_diamonds");
+                
+            } catch (error) {
+                console.error("Player cleanup failed:", error);
+            }
+        });
+    
+        // Rest of existing cleanup logic
+        this.levelManager.cleanup();
+        resetScoreboard(this.config.scoreboardConfig.objectiveId);
+        clearArena(this.config.arenaLocation, this.config.arenaSize);
+        this.levelManager.cleanup();
         if (this.gameInterval) system.clearRun(this.gameInterval);
         if (this.levelTimeout) system.clearRun(this.levelTimeout);
         
-        let endMessage = success ? "§6§l🏆 GAME COMPLETE! 🏆" : "§c§l❌ GAME OVER ❌";
-        
+        resetScoreboard(this.config.scoreboardConfig.objectiveId);
+        clearArena(this.config.arenaLocation, this.config.arenaSize);
+
+        const endMessage = success ? "§6§l🏆 GAME COMPLETE! 🏆" : "§c§l❌ GAME OVER ❌";
         this.players.forEach(player => {
             player.sendMessage(endMessage);
             try {
                 const objective = world.scoreboard.getObjective(this.config.scoreboardConfig.objectiveId);
                 if (objective) {
-                    const totalScore = objective.getScore(player) || 0;
-                    player.sendMessage(`§eYour final score: §f${totalScore}`);
+                    player.sendMessage(`§eTotal Score: §f${this.totalScore}`);
                 }
             } catch (error) {
-                console.error("Failed to get player score:", error);
+                console.error("Failed to get score:", error);
             }
             
             player.runCommand(success ? "playsound random.levelup @s" : "playsound mob.wither.death @s");
@@ -228,8 +245,7 @@ private handleLevelTimeout() {
         });
 
         if (this.onGameEnd) {
-            const callback = this.onGameEnd;
-            system.runTimeout(() => callback(), 120);
+            system.runTimeout(() => this.onGameEnd!(), 120);
         }
     }
 }

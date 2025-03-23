@@ -1,21 +1,28 @@
 import { world, system, BlockPermutation, Vector3, Dimension } from "@minecraft/server";
-    import { MinecraftEntityTypes } from "@minecraft/vanilla-data";
+import { MinecraftDimensionTypes, MinecraftEntityTypes } from "@minecraft/vanilla-data";
 import type { GameCore } from "./GameCore";
+import { Vector3Utils } from "@minecraft/math";
 
 export class LevelManager {
+    private mobSpawnInterval?: number;
+    
     constructor(private game: GameCore) {}
 
     initializeLevel() {
         try {
             const dimension = this.game.config.arenaLocation.dimension;
             this.placeRandomBlocks(dimension);
-            this.spawnEntity(dimension); // Call spawnEntity during level initialization
             this.spawnTargetBlock(dimension);
+            
+            // Spawn initial mobs
+            this.spawnMobs(dimension);
+            
+            
         } catch (error) {
             console.error("Level initialization failed:", error);
         }
     }
-
+    
     private placeRandomBlocks(dimension: Dimension) {
         const arena = this.game.config.arenaLocation;
         for (let i = 0; i < 15; i++) {
@@ -26,26 +33,72 @@ export class LevelManager {
         }
     }
 
-
-
-    private spawnEntity(dimension: Dimension) {
-        const arena = this.game.config.arenaLocation;
-        const size = this.game.config.arenaSize;
+    private spawnMobs(dimension: Dimension) {
+        try {
+            const arena = this.game.config.arenaLocation;
+            const size = this.game.config.arenaSize;
+            const spawnDimension = this.game.config.arenaLocation.dimension;
     
-        // Spawn mobs on the ARENA FLOOR (y = arena.y)
-        const spawnCount = Math.floor(Math.random() * 2) + 1;
+            // 1. Force-load chunks to ensure spawning area is active
+            spawnDimension.runCommand(`forceload add ${arena.x - 16} ${arena.z - 16} ${arena.x + 16} ${arena.z + 16}`);
     
-        for (let i = 0; i < spawnCount; i++) {
-            const x = arena.x + Math.floor(Math.random() * size.x) - Math.floor(size.x / 2);
-            const z = arena.z + Math.floor(Math.random() * size.z) - Math.floor(size.z / 2);
-            const y = arena.y; // Spawn directly on the arena floor
-    
-    
-            try {
-                dimension.spawnEntity(this.game.currentLevel.mobToSpawn, { x, y: y + 1, z }); // Spawn 1 block above floor
-            } catch (error) {
-                console.error(`Failed to spawn mob:`, error);
+            // 2. Case-insensitive entity type handling
+            const entityId = this.game.currentLevel.mobToSpawn.toLowerCase().replace("minecraft:", "");
+            const EntityType = MinecraftEntityTypes[entityId as keyof typeof MinecraftEntityTypes];
+            
+            if (!EntityType) {
+                console.error(`Invalid mob type: ${entityId}. Valid options: ${Object.keys(MinecraftEntityTypes).join(", ")}`);
+                return;
             }
+    
+            // 3. Corrected spawn logic
+            const spawnCount = 3;
+            console.log(`Spawning ${spawnCount} ${entityId} at Y=${arena.y + 1}`);
+    
+            for (let i = 0; i < spawnCount; i++) {
+                // Calculate valid positions within arena bounds
+                const offsetX = (Math.random() * (size.x - 4)) - (size.x / 2 - 2);
+                const offsetZ = (Math.random() * (size.z - 4)) - (size.z / 2 - 2);
+                
+                const spawnPos = {
+                    x: arena.x + Math.floor(offsetX) + 0.5, // Center in block
+                    y: arena.y + 1, // 1 block above floor
+                    z: arena.z + Math.floor(offsetZ) + 0.5
+                };
+    
+                // 4. Validate floor block (fix: cobblestone is valid)
+                const floorPos = { 
+                    x: Math.floor(spawnPos.x), 
+                    y: arena.y, 
+                    z: Math.floor(spawnPos.z) 
+                };
+                const floorBlock = spawnDimension.getBlock(floorPos);
+                
+                // Only reject non-solid blocks (e.g., air, leaves)
+                if (!floorBlock || ["minecraft:air", "minecraft:leaves"].includes(floorBlock.typeId)) {
+                    console.warn(`Invalid floor at ${floorPos.x},${floorPos.y},${floorPos.z} (${floorBlock?.typeId})`);
+                    continue;
+                }
+    
+                // 5. Spawn entity with error handling
+                try {
+                    const entity = spawnDimension.spawnEntity(entityId, spawnPos);
+                    console.log(`Spawned ${entityId} at ${JSON.stringify(spawnPos)}`);
+                } catch (error) {
+                    console.error(`Failed to spawn at ${JSON.stringify(spawnPos)}:`, error);
+                }
+            }
+        } catch (error) {
+            console.error("Mob spawning failed:", error);
+        }
+    }
+
+    public cleanup() {
+        console.log("LevelManager cleanup");
+        if (this.mobSpawnInterval) {
+            console.log("Clearing mob spawn interval");
+            system.clearRun(this.mobSpawnInterval);
+            this.mobSpawnInterval = undefined;
         }
     }
 

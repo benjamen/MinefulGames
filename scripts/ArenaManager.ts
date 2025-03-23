@@ -130,96 +130,20 @@ export function createArena(
  * @param arenaSize Dimensions of the arena ({ x, y, z })
  */
 
+// Modified clearArena function
 export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: number; y: number; z: number }) {
   const { x, y, z, dimension } = arenaLowerCorner;
 
-  // Validate arena size and dimension before proceeding
-  if (arenaSize.x <= 0 || arenaSize.y <= 0 || arenaSize.z <= 0) {
-    world.sendMessage("⚠️ Invalid arena size. Please check dimensions.");
-    return;
-  }
+  // Calculate correct bounds
+  const startX = x - Math.floor(arenaSize.x/2);
+  const startZ = z - Math.floor(arenaSize.z/2);
+  const endX = x + Math.floor(arenaSize.x/2);
+  const endZ = z + Math.floor(arenaSize.z/2);
+  const endY = y + arenaSize.y;
 
-  if (!dimension) {
-    console.error("❌ Arena dimension is undefined");
-    world.sendMessage("⚠️ Failed to clear arena: dimension is undefined");
-    return;
-  }
-
-  try {
-    console.log(`Clearing arena from (${x},${y},${z}) with size (${arenaSize.x},${arenaSize.y},${arenaSize.z})`);
-    
-    // Calculate end coordinates
-    const endX = x + arenaSize.x + 1; //floor, wall
-    const endY = y + arenaSize.y + 1;
-    const endZ = z + arenaSize.z + 1;
-    
-    // Remove all non-player entities within the arena first
-    try {
-      const killCommand = `kill @e[type=!player,x=${x},y=${y},z=${z},dx=${arenaSize.x},dy=${arenaSize.y},dz=${arenaSize.z}]`;
-      dimension.runCommand(killCommand);
-      console.log("✅ Entities cleared from arena");
-    } catch (entityError) {
-      console.error(`⚠️ Failed to clear entities: ${entityError instanceof Error ? entityError.message : entityError}`);
-    }
-    
-    // Instead of a single fill command, break it into smaller chunks if the area is large
-    // to avoid potential command size limitations
-    const MAX_VOLUME = 32768; // Minecraft's fill command limit
-    const totalVolume = arenaSize.x * arenaSize.y * arenaSize.z;
-    
-    if (totalVolume <= MAX_VOLUME) {
-      // Small enough for one command
-      const fillCommand = `fill ${x} ${y} ${z} ${endX - 1} ${endY - 1} ${endZ - 1} air`;
-      try {
-        dimension.runCommand(fillCommand);
-        console.log("✅ Arena cleared successfully in one operation");
-      } catch (fillError) {
-        console.error(`⚠️ Fill command failed: ${fillError instanceof Error ? fillError.message : fillError}`);
-        world.sendMessage("⚠️ Failed to clear arena with fill command");
-      }
-    } else {
-      // Break into layers for larger arenas
-      console.log("Arena too large for single fill, processing in layers...");
-      
-      // Process the arena in horizontal layers
-      for (let curY = y; curY < endY; curY += 4) { // Process in 4-block height chunks
-        const layerHeight = Math.min(4, endY - curY);
-        const layerFillCommand = `fill ${x} ${curY} ${z} ${endX - 1} ${curY + layerHeight - 1} ${endZ - 1} air`;
-        
-        try {
-          dimension.runCommand(layerFillCommand);
-        } catch (layerError) {
-          console.error(`⚠️ Layer fill failed at y=${curY}: ${layerError instanceof Error ? layerError.message : layerError}`);
-          
-          // If a layer fails, try to process it in smaller segments
-          try {
-            for (let segX = x; segX < endX; segX += 16) {
-              for (let segZ = z; segZ < endZ; segZ += 16) {
-                const segEndX = Math.min(segX + 16, endX);
-                const segEndZ = Math.min(segZ + 16, endZ);
-                
-                const segmentCommand = `fill ${segX} ${curY} ${segZ} ${segEndX - 1} ${curY + layerHeight - 1} ${segEndZ - 1} air`;
-                try {
-                  dimension.runCommand(segmentCommand);
-                } catch (segmentError) {
-                  console.error(`⚠️ Segment fill failed at (${segX},${curY},${segZ}): ${segmentError instanceof Error ? segmentError.message : segmentError}`);
-                }
-              }
-            }
-          } catch (segmentationError) {
-            console.error(`⚠️ Segmented fill failed: ${segmentationError instanceof Error ? segmentationError.message : segmentationError}`);
-          }
-        }
-      }
-      console.log("✅ Arena cleared successfully in layers");
-    }
-
-    // Final confirmation message
-    world.sendMessage("✅ Arena cleared successfully");
-  } catch (error) {
-    console.error(`⚠️ Failed to execute 'clearArena': ${error instanceof Error ? error.message : error}`);
-    world.sendMessage(`⚠️ Failed to clear arena: ${error instanceof Error ? error.message : error}`);
-  }
+  // Use these corrected coordinates in fill commands
+  const fillCommand = `fill ${startX} ${y} ${startZ} ${endX} ${endY} ${endZ} air`;
+  dimension.runCommand(fillCommand);
 }
 
 /**

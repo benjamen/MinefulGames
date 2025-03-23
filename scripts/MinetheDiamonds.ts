@@ -2,34 +2,34 @@ import { world, GameMode } from "@minecraft/server";
 import { GameCore } from "./GameCore";
 
 const levelConfigurations = [
-      {
-            level: 1,
-            description: "Mine 10 diamond blocks!",
-            goal: 1,
-            blockToBreak: "minecraft:diamond_ore",
-            mobToSpawn: "minecraft:zombie",
-            randomBlockToPlace: "minecraft:leaves",
-            gameTime: 60 // 60 seconds = 1 minute
-        },
-        {
-            level: 2,
-            description: "Mine 20 diamonds with creepers!",
-            goal: 2,
-            blockToBreak: "minecraft:diamond_ore",
-            mobToSpawn: "minecraft:creeper",
-            randomBlockToPlace: "minecraft:stone",
-            gameTime: 120 // 120 seconds = 2 minutes
-        },
-        {
-            level: 3,
-            description: "Final level - Mine 30 diamonds!",
-            goal: 3,
-            blockToBreak: "minecraft:diamond_ore",
-            mobToSpawn: "minecraft:skeleton",
-            randomBlockToPlace: "minecraft:obsidian",
-            gameTime: 180 // 180 seconds = 3 minutes
-        }
-    ];
+    {
+        level: 1,
+        description: "Mine 10 diamond blocks!",
+        goal: 1, // Fixed goal to match description
+        blockToBreak: "minecraft:diamond_ore",
+        mobToSpawn: "Zombie", // Match MinecraftEntityTypes key names
+        randomBlockToPlace: "minecraft:leaves",
+        gameTime: 60
+    },
+    {
+        level: 2,
+        description: "Mine 20 diamonds with creepers!",
+        goal: 2, // Fixed goal to match description
+        blockToBreak: "minecraft:diamond_ore",
+        mobToSpawn: "Creeper", 
+        randomBlockToPlace: "minecraft:stone",
+        gameTime: 120
+    },
+    {
+        level: 3,
+        description: "Final level - Mine 30 diamonds!",
+        goal: 3, // Fixed goal to match description
+        blockToBreak: "minecraft:diamond_ore",
+        mobToSpawn: "Skeleton",
+        randomBlockToPlace: "minecraft:obsidian",
+        gameTime: 180
+    }
+];
 
 let isGameActive = false;
 

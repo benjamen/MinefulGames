@@ -1,25 +1,15 @@
-import { world, Player, DisplaySlotId, system } from "@minecraft/server";
+import { world, DisplaySlotId } from "@minecraft/server";
 
 export function setupScoreboard(objectiveId: string, displayName: string) {
     try {
-        // Try to get the objective, or create it if it doesn't exist
-        let objective = world.scoreboard.getObjective(objectiveId);
-        if (!objective) {
-            objective = world.scoreboard.addObjective(objectiveId, displayName);
-        }
+        // Remove existing objective if it exists
+        try {
+            world.scoreboard.removeObjective(objectiveId);
+        } catch {} 
         
-        // Set up the display slot with a longer delay to ensure it's ready
-        system.runTimeout(() => {
-            try {
-                world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
-                    objective: objective
-                });
-                world.sendMessage("§aScoreboard initialized!");
-            } catch (error) {
-                console.error("Failed to set display slot:", error);
-            }
-        }, 20); // 1-second delay
-        
+        // Create fresh objective and display it
+        const objective = world.scoreboard.addObjective(objectiveId, displayName);
+        world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, { objective });
         return objective;
     } catch (error) {
         console.error("Scoreboard setup failed:", error);
@@ -27,23 +17,20 @@ export function setupScoreboard(objectiveId: string, displayName: string) {
     }
 }
 
-export function updatePlayerScore(player: Player, objectiveId: string, score: number) {
+export function updatePlayerScore(player: any, objectiveId: string, points: number) {
     try {
-        const objective = world.scoreboard.getObjective(objectiveId);
-        if (objective) {
-            objective.setScore(player, score);
-        }
+        // Add to existing score instead of setting it
+        player.runCommand(`scoreboard players add @s ${objectiveId} ${points}`);
     } catch (error) {
         console.error("Score update failed:", error);
     }
 }
 
-export function clearPlayerScores(players: Player[]) {
-    players.forEach(player => {
-        try {
-            player.runCommand(`scoreboard players reset @s`);
-        } catch (error) {
-            console.error("Score reset failed:", error);
-        }
-    });
+export function resetScoreboard(objectiveId: string) {
+    try {
+        world.scoreboard.removeObjective(objectiveId);
+        world.scoreboard.clearObjectiveAtDisplaySlot(DisplaySlotId.Sidebar);
+    } catch (error) {
+        console.error("Scoreboard reset failed:", error);
+    }
 }
