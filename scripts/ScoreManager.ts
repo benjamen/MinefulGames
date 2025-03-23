@@ -1,14 +1,25 @@
-import { world, Player, DisplaySlotId } from "@minecraft/server";
+import { world, Player, DisplaySlotId, system } from "@minecraft/server";
 
 export function setupScoreboard(objectiveId: string, displayName: string) {
     try {
+        // Try to get the objective, or create it if it doesn't exist
         let objective = world.scoreboard.getObjective(objectiveId);
         if (!objective) {
             objective = world.scoreboard.addObjective(objectiveId, displayName);
-            world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
-                objective: objective
-            });
         }
+        
+        // Set up the display slot with a longer delay to ensure it's ready
+        system.runTimeout(() => {
+            try {
+                world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
+                    objective: objective
+                });
+                world.sendMessage("§aScoreboard initialized!");
+            } catch (error) {
+                console.error("Failed to set display slot:", error);
+            }
+        }, 20); // 1-second delay
+        
         return objective;
     } catch (error) {
         console.error("Scoreboard setup failed:", error);

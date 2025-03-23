@@ -5,7 +5,7 @@ const levelConfigurations = [
     {
         level: 1,
         description: "Mine 10 diamond blocks!",
-        goal: 10,
+        goal: 1,
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "minecraft:zombie",
         randomBlockToPlace: "minecraft:leaves",
@@ -44,7 +44,7 @@ export function MinetheDiamonds() {
         name: "Mine the Diamonds!",
         levelConfigurations,
         arenaLocation: { x: 25, y: -40, z: 0, dimension: world.getDimension("overworld") },
-        arenaSize: { x: 30, y: 5, z: 30 },
+        arenaSize: { x: 30, y: 10, z: 30 }, // Increase height to 10 for better mob placement
         arenaSettings: {
             includeWalls: true,
             includeFloor: true,
