@@ -14,7 +14,7 @@ const levelConfigurations = [
         {
             level: 2,
             description: "Mine 20 diamonds with creepers!",
-            goal: 20,
+            goal: 2,
             blockToBreak: "minecraft:diamond_ore",
             mobToSpawn: "minecraft:creeper",
             randomBlockToPlace: "minecraft:stone",
@@ -23,7 +23,7 @@ const levelConfigurations = [
         {
             level: 3,
             description: "Final level - Mine 30 diamonds!",
-            goal: 30,
+            goal: 3,
             blockToBreak: "minecraft:diamond_ore",
             mobToSpawn: "minecraft:skeleton",
             randomBlockToPlace: "minecraft:obsidian",
