@@ -35,40 +35,10 @@ export class LevelManager {
 
     private async spawnMobs(dimension: Dimension) {
         try {
-            const arena = this.game.config.arenaLocation;
+            const dimension = world.getDimension("overworld");
+            const testPos = { x: 25, y: -40, z: 0 }; // Replace with valid coordinates
+            dimension.spawnEntity(MinecraftEntityTypes.Zombie, testPos);
             
-            // Spawn mobs
-            const mobsToSpawn = [
-                { type: MinecraftEntityTypes.Zombie, count: 3 },
-                { type: MinecraftEntityTypes.Skeleton, count: 2 }
-            ];
-    
-            for (const mob of mobsToSpawn) {
-                for (let i = 0; i < mob.count; i++) {
-                    const spawnPos = this.randomArenaPosition();
-                    
-                    try {
-                        // Spawn the mob using proper Bedrock 1.21 syntax
-                        await dimension.runCommandAsync(
-                            `summon ${mob.type} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
-                        );
-    
-                        // Add equipment using proper Bedrock 1.21 syntax
-                        if (mob.type === MinecraftEntityTypes.Zombie) {
-                            await dimension.runCommandAsync(
-                                `give @e[type=${mob.type},x=${spawnPos.x},y=${spawnPos.y},z=${spawnPos.z},r=1] iron_sword`
-                            );
-                        }
-                        if (mob.type === MinecraftEntityTypes.Skeleton) {
-                            await dimension.runCommandAsync(
-                                `give @e[type=${mob.type},x=${spawnPos.x},y=${spawnPos.y},z=${spawnPos.z},r=1] bow`
-                            );
-                        }
-                    } catch (error) {
-                        console.warn(`Failed to spawn ${mob.type}:`, error);
-                    }
-                }
-            }
     
         } catch (error) {
             console.error("Mob spawning failed:", error);
