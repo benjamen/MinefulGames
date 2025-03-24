@@ -7,7 +7,8 @@ const levelConfigurations = [
         description: "Mine 10 diamond blocks!",
         goal: 1, // Fixed goal to match description
         blockToBreak: "minecraft:diamond_ore",
-        mobToSpawn: "Zombie", // Match MinecraftEntityTypes key names
+        mobToSpawn: "Zombie",
+        mobCount: 3, // Add this
         randomBlockToPlace: "minecraft:leaves",
         gameTime: 60
     },
@@ -17,6 +18,7 @@ const levelConfigurations = [
         goal: 2, // Fixed goal to match description
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Creeper", 
+        mobCount: 3, // Add this
         randomBlockToPlace: "minecraft:stone",
         gameTime: 120
     },
@@ -26,6 +28,7 @@ const levelConfigurations = [
         goal: 3, // Fixed goal to match description
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Skeleton",
+        mobCount: 3, // Add this
         randomBlockToPlace: "minecraft:obsidian",
         gameTime: 180
     }

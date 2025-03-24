@@ -37,10 +37,14 @@ export class LevelManager {
         try {
             const arena = this.game.config.arenaLocation;
             
-            // Spawn mobs
+            // Get mob configuration from the current level
+            const currentLevel = this.game.currentLevel;
+            const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
+            const mobType = MinecraftEntityTypes[mobTypeKey];
+            const mobCount = currentLevel.level * 2 + 1; // Example: Dynamic count based on level (1=3, 2=5, 3=7)
+    
             const mobsToSpawn = [
-                { type: MinecraftEntityTypes.Zombie, count: 3 },
-                { type: MinecraftEntityTypes.Skeleton, count: 2 }
+                { type: mobType, count: mobCount }
             ];
     
             for (const mob of mobsToSpawn) {
@@ -48,12 +52,12 @@ export class LevelManager {
                     const spawnPos = this.randomArenaPosition();
                     
                     try {
-                        // Spawn the mob using proper Bedrock 1.21 syntax
+                        // Spawn the mob
                         await dimension.runCommandAsync(
                             `summon ${mob.type} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
                         );
     
-                        // Add equipment using proper Bedrock 1.21 syntax
+                        // Add equipment based on mob type
                         if (mob.type === MinecraftEntityTypes.Zombie) {
                             await dimension.runCommandAsync(
                                 `give @e[type=${mob.type},x=${spawnPos.x},y=${spawnPos.y},z=${spawnPos.z},r=1] iron_sword`
