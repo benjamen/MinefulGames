@@ -138,7 +138,16 @@ export class GameCore {
 
     private startLevel() {
         this.remainingTime = this.currentLevel.gameTime * 20;
-        console.log(`Starting level ${this.currentLevelIndex + 1} with ${this.remainingTime} ticks`);
+        
+            // Show level title
+        this.players.forEach(player => {
+            player.onScreenDisplay.setTitle({
+                rawtext: [
+                    { text: `§eLevel ${this.currentLevelIndex + 1}\n` },
+                    { text: `§f${this.currentLevel.description}` }
+                ]
+            });
+        });
 
         this.players.forEach(player => {
             player.sendMessage(`§eStarting Level ${this.currentLevelIndex + 1}: §f${this.currentLevel.description}`);
@@ -184,7 +193,10 @@ export class GameCore {
             this.endGame(true);
             return;
         }
-
+    
+        // Cleanup BEFORE level increment to target previous level's mobs
+        this.levelManager.cleanup();
+    
         this.currentLevelIndex++;
         this.score = 0;
         this.players.forEach(player => {

@@ -5,6 +5,7 @@ import { Vector3Utils } from "@minecraft/math";
 
 export class LevelManager {
     private mobSpawnInterval?: number;
+    private currentTargetBlockPos: Vector3 | undefined; // Add this property
     
     constructor(private game: GameCore) {}
 
@@ -41,7 +42,7 @@ export class LevelManager {
             const currentLevel = this.game.currentLevel;
             const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
             const mobType = MinecraftEntityTypes[mobTypeKey];
-            const mobCount = currentLevel.level * 2 + 1; // Example: Dynamic count based on level (1=3, 2=5, 3=7)
+            const mobCount = currentLevel.mobCount; // Use mobCount from level configuration
     
             const mobsToSpawn = [
                 { type: mobType, count: mobCount }
@@ -56,18 +57,7 @@ export class LevelManager {
                         await dimension.runCommandAsync(
                             `summon ${mob.type} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
                         );
-    
-                        // Add equipment based on mob type
-                        if (mob.type === MinecraftEntityTypes.Zombie) {
-                            await dimension.runCommandAsync(
-                                `give @e[type=${mob.type},x=${spawnPos.x},y=${spawnPos.y},z=${spawnPos.z},r=1] iron_sword`
-                            );
-                        }
-                        if (mob.type === MinecraftEntityTypes.Skeleton) {
-                            await dimension.runCommandAsync(
-                                `give @e[type=${mob.type},x=${spawnPos.x},y=${spawnPos.y},z=${spawnPos.z},r=1] bow`
-                            );
-                        }
+                        console.log(`Spawned ${mob.type} at ${JSON.stringify(spawnPos)}`);
                     } catch (error) {
                         console.warn(`Failed to spawn ${mob.type}:`, error);
                     }
@@ -78,18 +68,51 @@ export class LevelManager {
             console.error("Mob spawning failed:", error);
         }
     }
-    
+
     public cleanup() {
         console.log("LevelManager cleanup");
+        
+        // Clear existing mob spawn interval
         if (this.mobSpawnInterval) {
-            console.log("Clearing mob spawn interval");
             system.clearRun(this.mobSpawnInterval);
             this.mobSpawnInterval = undefined;
         }
+    
+        // Kill all mobs from the current level
+        try {
+            const currentLevel = this.game.currentLevel;
+            const arena = this.game.config.arenaLocation;
+            const size = this.game.config.arenaSize;
+            
+            // Get mob type ID from level configuration
+            const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
+            const mobTypeId = mobTypeKey; // Use the key directly as the entity type
+    
+            // Calculate arena bounds
+            const xStart = arena.x - Math.floor(size.x / 2);
+            const zStart = arena.z - Math.floor(size.z / 2);
+            const dx = size.x;
+            const dz = size.z;
+    
+            // Execute kill command for mobs in arena area
+            arena.dimension.runCommandAsync(
+                `kill @e[type=${mobTypeId},x=${xStart},y=${arena.y},z=${zStart},dx=${dx},dy=${size.y},dz=${dz}]`
+            ).then(() => {
+                console.log(`Cleared all ${mobTypeId} entities`);
+            });
+        } catch (error) {
+            console.error("Failed to clear mobs:", error);
+        }
     }
-
+    
     public spawnTargetBlock(dimension: Dimension) {
         try {
+            // Clear previous target block
+            if (this.currentTargetBlockPos) {
+                const oldBlock = dimension.getBlock(this.currentTargetBlockPos);
+                oldBlock?.setPermutation(BlockPermutation.resolve("air"));
+            }
+
             const pos = this.randomArenaPosition();
             const block = dimension.getBlock(pos);
             
@@ -97,14 +120,14 @@ export class LevelManager {
                 block.setPermutation(
                     BlockPermutation.resolve(this.game.currentLevel.blockToBreak)
                 );
-                console.log(`Successfully placed target block at ${JSON.stringify(pos)}`);
-            } else {
-                console.warn("Invalid block position for target block:", JSON.stringify(pos));
+                this.currentTargetBlockPos = pos; // Track new position
+                console.log(`Placed target block at ${JSON.stringify(pos)}`);
             }
         } catch (error) {
             console.error("Block spawn failed:", error);
         }
     }
+
 
     private randomArenaPosition(): Vector3 {
         const arena = this.game.config.arenaLocation;
