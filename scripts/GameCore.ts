@@ -190,15 +190,24 @@ export class GameCore {
         this.endGame();
     }
 
+    // GameCore.ts - Update nextLevel method
     public nextLevel() {
         if (this.currentLevelIndex >= this.config.levelConfigurations.length - 1) {
             this.endGame(true);
             return;
         }
-    
-        // Cleanup BEFORE level increment to target previous level's mobs
+
+        // Cleanup current level
         this.levelManager.cleanup();
-    
+        
+        // Rebuild arena for new level
+        clearArena(this.config.arenaLocation, this.config.arenaSize);
+        setupArena(
+            { x: this.config.arenaLocation.x, y: this.config.arenaLocation.y, z: this.config.arenaLocation.z },
+            this.config.arenaSize,
+            this.config.arenaSettings
+        );
+
         this.currentLevelIndex++;
         this.score = 0;
         this.players.forEach(player => {
@@ -208,61 +217,55 @@ export class GameCore {
         system.runTimeout(() => this.startLevel(), 60);
     }
 
-    private endGame(success = false) {
-        setWorldSettings("gameEnd");
-        // Cleanup players
-        this.players.forEach(player => {
-            try {
-                // Clear inventory
-                const inv = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
-                inv.container?.clearAll();
-                
-                // Reset gamemode
-                player.runCommand(`gamemode creative`);
-                
-                // Teleport and reset score
-                player.teleport(this.config.lobbyLocation);
-                player.runCommand("scoreboard players reset @s mtd_diamonds");
-                
-            } catch (error) {
-                console.error("Player cleanup failed:", error);
-            }
-        });
+    // GameCore.ts - Update endGame method
+private endGame(success = false) {
+    setWorldSettings("gameEnd");
     
-        // Rest of existing cleanup logic
-        this.levelManager.cleanup();
-        resetScoreboard(this.config.scoreboardConfig.objectiveId);
-        clearArena(this.config.arenaLocation, this.config.arenaSize);
-        this.levelManager.cleanup();
-        if (this.gameInterval) system.clearRun(this.gameInterval);
-        if (this.levelTimeout) system.clearRun(this.levelTimeout);
-        
-
-
-        const endMessage = success ? "§6§l🏆 GAME COMPLETE! 🏆" : "§c§l❌ GAME OVER ❌";
-        this.players.forEach(player => {
-            player.sendMessage(endMessage);
-            try {
-                const objective = world.scoreboard.getObjective(this.config.scoreboardConfig.objectiveId);
-                if (objective) {
-                    player.sendMessage(`§eTotal Score: §f${this.totalScore}`);
-                }
-            } catch (error) {
-                console.error("Failed to get score:", error);
-            }
-
-            resetScoreboard(this.config.scoreboardConfig.objectiveId);
-            clearArena(this.config.arenaLocation, this.config.arenaSize);
-            
-            player.runCommand(success ? "playsound random.levelup @s" : "playsound mob.wither.death @s");
-            system.runTimeout(() => {
-                player.teleport(this.config.lobbyLocation);
-                player.removeTag("MTD");
-            }, 100);
-        });
-
-        if (this.onGameEnd) {
-            system.runTimeout(() => this.onGameEnd!(), 120);
+    // Cleanup players
+    this.players.forEach(player => {
+        try {
+            const inv = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
+            inv.container?.clearAll();
+            player.runCommand(`gamemode creative`);
+            player.teleport(this.config.lobbyLocation);
+            player.runCommand("scoreboard players reset @s mtd_diamonds");
+        } catch (error) {
+            console.error("Player cleanup failed:", error);
         }
-    }
+    });
+
+    // Single cleanup call
+    this.levelManager.cleanup();
+    clearArena(this.config.arenaLocation, this.config.arenaSize);
+    
+    // Clear intervals
+    if (this.gameInterval) system.clearRun(this.gameInterval);
+    if (this.levelTimeout) system.clearRun(this.levelTimeout);
+    
+    // Display final score before resetting
+    const endMessage = success ? "§6§l🏆 GAME COMPLETE! 🏆" : "§c§l❌ GAME OVER ❌";
+    this.players.forEach(player => {
+        player.sendMessage(endMessage);
+        try {
+            const objective = world.scoreboard.getObjective(this.config.scoreboardConfig.objectiveId);
+            if (objective) {
+                player.sendMessage(`§eTotal Score: §f${this.totalScore}`);
+            }
+        } catch (error) {
+            console.error("Failed to get score:", error);
+        }
+        
+        player.runCommand(success ? "playsound random.levelup @s" : "playsound mob.wither.death @s");
+        system.runTimeout(() => {
+            player.teleport(this.config.lobbyLocation);
+            player.removeTag("MTD");
+        }, 100);
+    });
+
+    // Reset scoreboard once after everything else
+    system.runTimeout(() => {
+        resetScoreboard(this.config.scoreboardConfig.objectiveId);
+        if (this.onGameEnd) this.onGameEnd();
+    }, 120);
+}
 }

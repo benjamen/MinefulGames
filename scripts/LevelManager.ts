@@ -68,15 +68,14 @@ export class LevelManager {
         }
     }
 
+    // LevelManager.ts - Update cleanup method
     public cleanup() {
-        console.log("LevelManager cleanup");
-        
         // Clear existing mob spawn interval
         if (this.mobSpawnInterval) {
             system.clearRun(this.mobSpawnInterval);
             this.mobSpawnInterval = undefined;
         }
-    
+
         // Kill all mobs from the current level
         try {
             const currentLevel = this.game.currentLevel;
@@ -85,25 +84,22 @@ export class LevelManager {
             
             // Get mob type ID from level configuration
             const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
-            const mobTypeId = mobTypeKey; // Use the key directly as the entity type
-    
+            const mobTypeId = mobTypeKey.toLowerCase(); // Ensure lowercase for command
+            
             // Calculate arena bounds
             const xStart = arena.x - Math.floor(size.x / 2);
             const zStart = arena.z - Math.floor(size.z / 2);
             const dx = size.x;
             const dz = size.z;
-    
+            
             // Execute kill command for mobs in arena area
             arena.dimension.runCommandAsync(
                 `kill @e[type=${mobTypeId},x=${xStart},y=${arena.y},z=${zStart},dx=${dx},dy=${size.y},dz=${dz}]`
-            ).then(() => {
-                console.log(`Cleared all ${mobTypeId} entities`);
-            });
+            ).catch(error => console.error("Failed to clear mobs:", error));
         } catch (error) {
             console.error("Failed to clear mobs:", error);
         }
     }
-    
     public spawnTargetBlock(dimension: Dimension) {
         try {
             // Clear previous target block
