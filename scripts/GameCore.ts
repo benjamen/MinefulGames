@@ -52,14 +52,14 @@ export class GameCore {
     }
 
     public startGame() {
-        setWorldSettings("day");
+        setWorldSettings("gameStart");
         clearArena(this.config.arenaLocation, this.config.arenaSize);
         setupArena(
             { x: this.config.arenaLocation.x, y: this.config.arenaLocation.y, z: this.config.arenaLocation.z },
             this.config.arenaSize,
             this.config.arenaSettings
         );
-
+    
         this.initializePlayers();
         setupScoreboard(this.config.scoreboardConfig.objectiveId, this.config.scoreboardConfig.displayName);
         this.registerEventHandlers();
@@ -110,12 +110,14 @@ export class GameCore {
         });
     }
 
+    // GameCore.ts - Update handleBlockBreak
     private handleBlockBreak(player: Player) {
         system.run(() => {
             this.score++;
             this.totalScore++;
             updatePlayerScore(player, this.config.scoreboardConfig.objectiveId, 1);
-            this.levelManager.initializeLevel();
+            // Spawn a new target block after each break
+            this.levelManager.spawnTargetBlock(this.config.arenaLocation.dimension);
             
             if (this.score >= this.currentLevel.goal) {
                 this.nextLevel();
@@ -207,6 +209,7 @@ export class GameCore {
     }
 
     private endGame(success = false) {
+        setWorldSettings("gameEnd");
         // Cleanup players
         this.players.forEach(player => {
             try {

@@ -4,13 +4,14 @@ export default class ScriptManager {
   tickCount = 0;
 
   _availableFuncs: {
-    [name: string]: Array<(log: (message: string, status?: number) => void, location: DimensionLocation) => void>;
+    [name: string]: Array<(log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void>;
   } = {};
 
   pendingFuncs: Array<{
     name: string;
-    func: (log: (message: string, status?: number) => void, location: DimensionLocation) => void;
+    func: (log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void;
     location: DimensionLocation;
+    params?: string[];
   }> = [];
 
   gamePlayLogger(message: string, status?: number) {
@@ -26,7 +27,7 @@ export default class ScriptManager {
 
   newScriptEvent(scriptEvent: ScriptEventCommandMessageAfterEvent) {
     const messageId = scriptEvent.id.toLowerCase();
-    const [command, gameName] = messageId.split(":");
+    const [command, gameName, ...params] = messageId.split(":");
 
     if (command === "run" && gameName && scriptEvent.sourceEntity) {
       const sourceEntity = scriptEvent.sourceEntity;
@@ -51,7 +52,7 @@ export default class ScriptManager {
         const normalizedGameName = gameName.toLowerCase();
         if (this._availableFuncs[normalizedGameName]) {
           const GameFunctions = this._availableFuncs[normalizedGameName];
-          this.runSample(`${normalizedGameName}${this.tickCount}`, GameFunctions, nearbyLoc);
+          this.runSample(`${normalizedGameName}${this.tickCount}`, GameFunctions, nearbyLoc, params);
           this.gamePlayLogger(`Successfully started ${gameName}.`, 1);
         } else {
           this.gamePlayLogger(`Unknown game: ${gameName}`, -1);
@@ -64,11 +65,17 @@ export default class ScriptManager {
 
   runSample(
     sampleId: string,
-    snippetFunctions: Array<(log: (message: string, status?: number) => void, location: DimensionLocation) => void>,
-    targetLocation: DimensionLocation
+    snippetFunctions: Array<(log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void>,
+    targetLocation: DimensionLocation,
+    params?: string[]
   ) {
     for (let i = snippetFunctions.length - 1; i >= 0; i--) {
-      this.pendingFuncs.push({ name: sampleId, func: snippetFunctions[i], location: targetLocation });
+      this.pendingFuncs.push({ 
+        name: sampleId, 
+        func: snippetFunctions[i], 
+        location: targetLocation,
+        params 
+      });
     }
   }
 
@@ -79,7 +86,7 @@ export default class ScriptManager {
 
         if (funcSet) {
           try {
-            funcSet.func(this.gamePlayLogger, funcSet.location);
+            funcSet.func(this.gamePlayLogger, funcSet.location, funcSet.params);
           } catch (e: any) {
             world.sendMessage("Could not run sample function. Error: " + e.toString());
           }
@@ -87,7 +94,7 @@ export default class ScriptManager {
       }
     }
     if (this.tickCount === 200) {
-      world.sendMessage("Type '/scriptevent sample:run' in chat to run this sample.");
+      world.sendMessage("Type '/scriptevent run:mtd:x:y:z' in chat to run this sample with custom location.");
     }
 
     this.tickCount++;
@@ -108,7 +115,7 @@ export default class ScriptManager {
   }
 
   registerSamples(sampleSet: {
-    [name: string]: Array<(log: (message: string, status?: number) => void, location: DimensionLocation) => void>;
+    [name: string]: Array<(log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void>;
   }) {
     for (const sampleKey in sampleSet) {
       if (sampleKey.length > 1 && sampleSet[sampleKey]) {

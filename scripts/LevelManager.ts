@@ -1,38 +1,37 @@
-import { world, system, BlockPermutation, Vector3, Dimension } from "@minecraft/server";
+import { world, system, BlockPermutation, Vector3, Dimension, Block } from "@minecraft/server";
 import { MinecraftDimensionTypes, MinecraftEntityTypes } from "@minecraft/vanilla-data";
 import type { GameCore } from "./GameCore";
 import { Vector3Utils } from "@minecraft/math";
 
 export class LevelManager {
     private mobSpawnInterval?: number;
-    private currentTargetBlockPos: Vector3 | undefined; // Add this property
+    private currentTargetBlockPos: Vector3 | undefined;
+    private randomBlockPositions: Vector3[] = []; // Track placed random block positions
     
     constructor(private game: GameCore) {}
 
     initializeLevel() {
         try {
             const dimension = this.game.config.arenaLocation.dimension;
+            
+            // Clear existing entities in the arena first
+            this.clearArenaEntities(dimension);
+            
+            // Reset tracked block positions
+            this.randomBlockPositions = [];
+            
             this.placeRandomBlocks(dimension);
             this.spawnTargetBlock(dimension);
             
             // Spawn initial mobs
             this.spawnMobs(dimension);
             
-            
         } catch (error) {
             console.error("Level initialization failed:", error);
         }
     }
     
-    private placeRandomBlocks(dimension: Dimension) {
-        const arena = this.game.config.arenaLocation;
-        for (let i = 0; i < 15; i++) {
-            const pos = this.randomArenaPosition();
-            dimension.getBlock(pos)?.setPermutation(
-                BlockPermutation.resolve(this.game.currentLevel.randomBlockToPlace)
-            );
-        }
-    }
+
 
     private async spawnMobs(dimension: Dimension) {
         try {
@@ -138,5 +137,73 @@ export class LevelManager {
             y: arena.y + 1 + Math.floor(Math.random() * (size.y - 2)), // Ensure Y stays within arena
             z: arena.z - Math.floor(size.z/2) + Math.floor(Math.random() * size.z)
         };
+    }
+
+    private clearArenaEntities(dimension: Dimension) {
+        const arena = this.game.config.arenaLocation;
+        const size = this.game.config.arenaSize;
+        
+        // Calculate arena bounds precisely
+        const xStart = arena.x - Math.floor(size.x / 2);
+        const zStart = arena.z - Math.floor(size.z / 2);
+        
+        // Kill all non-player entities in the arena
+        dimension.runCommandAsync(
+            `kill @e[type=!player,x=${xStart},y=${arena.y},z=${zStart},dx=${size.x},dy=${size.y},dz=${size.z}]`
+        );
+    }
+    
+    private isValidBlockPlacement(block: Block): boolean {
+        // Check block is not in walls, floor, or ceiling
+        const arena = this.game.config.arenaLocation;
+        const size = this.game.config.arenaSize;
+        
+        const xStart = arena.x - Math.floor(size.x / 2);
+        const xEnd = arena.x + Math.floor(size.x / 2);
+        const yStart = arena.y;
+        const yEnd = arena.y + size.y;
+        const zStart = arena.z - Math.floor(size.z / 2);
+        const zEnd = arena.z + Math.floor(size.z / 2);
+        
+        const pos = block.location;
+        
+        // Check if block is on the walls, floor, or ceiling
+        const isWall = 
+            pos.x === xStart || pos.x === xEnd ||
+            pos.z === zStart || pos.z === zEnd;
+        
+        const isFloorOrCeiling = 
+            pos.y === yStart || pos.y === yEnd;
+        
+        return !isWall && !isFloorOrCeiling;
+    }
+    
+    private placeRandomBlocks(dimension: Dimension) {
+        const arena = this.game.config.arenaLocation;
+        const blockTypesToPlace = [
+            this.game.currentLevel.randomBlockToPlace,
+            // Randomly include diamond ore with less frequency
+            ...(Math.random() < 0.3 ? ["minecraft:diamond_ore"] : [])
+        ];
+        
+        const blockPlacementAttempts = 20; // More attempts to ensure valid placements
+        
+        for (let i = 0; i < blockPlacementAttempts; i++) {
+            const pos = this.randomArenaPosition();
+            const block = dimension.getBlock(pos);
+            
+            if (block && this.isValidBlockPlacement(block)) {
+                const blockType = blockTypesToPlace[Math.floor(Math.random() * blockTypesToPlace.length)];
+                
+                block.setPermutation(
+                    BlockPermutation.resolve(blockType)
+                );
+                
+                this.randomBlockPositions.push(pos);
+                
+                // Limit random blocks
+                if (this.randomBlockPositions.length >= 15) break;
+            }
+        }
     }
 }
