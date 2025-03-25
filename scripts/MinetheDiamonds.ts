@@ -5,32 +5,32 @@ const levelConfigurations = [
     {
         level: 1,
         description: "Mine 10 diamond blocks!",
-        goal: 1,
+        goal: 10,
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Zombie",
-        mobCount: 3,
+        mobCount: 5,
         randomBlockToPlace: "minecraft:leaves",
-        gameTime: 60
+        gameTime: 120
     },
     {
         level: 2,
         description: "Mine 20 diamonds with creepers!",
-        goal: 2,
+        goal: 20,
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Creeper", 
         mobCount: 3,
         randomBlockToPlace: "minecraft:stone",
-        gameTime: 120
+        gameTime: 240
     },
     {
         level: 3,
         description: "Final level - Mine 30 diamonds!",
-        goal: 3,
+        goal: 30,
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Skeleton",
         mobCount: 3,
         randomBlockToPlace: "minecraft:obsidian",
-        gameTime: 180
+        gameTime: 360
     }
 ];
 

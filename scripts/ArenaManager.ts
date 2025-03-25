@@ -58,6 +58,7 @@ export function setupArena(
  * Creates the arena structure with given parameters.
  * @param dimensions Arena creation parameters
  */
+// In ArenaManager.ts - Update createArena function
 export function createArena(
   dimensions: ArenaDimensions,
   options: {
@@ -67,7 +68,8 @@ export function createArena(
   }
 ) {
   let airBlockPerm = BlockPermutation.resolve("minecraft:air");
-  let cobblestoneBlockPerm = BlockPermutation.resolve("minecraft:cobblestone");
+  let arenaBlockPerm = BlockPermutation.resolve("minecraft:bedrock"); // Changed from cobblestone
+  
 
   // Clear the space inside the arena
   if (airBlockPerm) {
@@ -83,9 +85,9 @@ export function createArena(
   }
 
   // Create the floor (if enabled)
-  if (cobblestoneBlockPerm && options.includeFloor) {
+  if (arenaBlockPerm && options.includeFloor) {
     fillFloor(
-      cobblestoneBlockPerm,
+      arenaBlockPerm,
       dimensions.xOffset - dimensions.xSize / 2,
       dimensions.yOffset, // Floor starts at yOffset
       dimensions.zOffset - dimensions.zSize / 2,
@@ -95,9 +97,9 @@ export function createArena(
   }
 
   // Create the four walls (if enabled)
-  if (cobblestoneBlockPerm && options.includeWalls) {
+  if (arenaBlockPerm && options.includeWalls) {
     fourWalls(
-      cobblestoneBlockPerm,
+      arenaBlockPerm,
       dimensions.xOffset - dimensions.xSize / 2,
       dimensions.yOffset,
       dimensions.zOffset - dimensions.zSize / 2,
@@ -108,9 +110,9 @@ export function createArena(
   }
 
   // Create the roof (if enabled)
-  if (cobblestoneBlockPerm && options.includeRoof) {
+  if (arenaBlockPerm && options.includeRoof) {
     fillRoof(
-      cobblestoneBlockPerm,
+      arenaBlockPerm,
       dimensions.xOffset - dimensions.xSize / 2,
       dimensions.yOffset + dimensions.ySize, // Roof starts at yOffset + ySize
       dimensions.zOffset - dimensions.zSize / 2,
@@ -156,24 +158,21 @@ export function clearArena(arenaLowerCorner: DimensionLocation, arenaSize: { x: 
 // Updated teleport functions to handle dimensions properly
 export function teleportPlayersToArena(
   players: Player[],
-  arenaCenter: { x: number; y: number; z: number },
-  dimension: Dimension
+  arenaCenter: { x: number; y: number; z: number }, // Just coordinates
+  dimension: Dimension // Dimension passed separately
 ) {
   try {
-    // Calculate the safe Y-coordinate above the floor
-    const safeY = arenaCenter.y + 1; // Teleport players 1 block above the floor
-
-    players.forEach((player) => {
-      if (player?.isValid()) {
-        // Teleport the player to the safe Y-coordinate
-        player.teleport(
-          { x: arenaCenter.x, y: safeY, z: arenaCenter.z },
-          { dimension }
-        );
-      }
-    });
+      const safeY = arenaCenter.y + 1;
+      players.forEach((player) => {
+          if (player?.isValid()) {
+              player.teleport(
+                  { x: arenaCenter.x, y: safeY, z: arenaCenter.z },
+                  { dimension }
+              );
+          }
+      });
   } catch (error) {
-    console.error("Teleport error:", error);
+      console.error("Teleport error:", error);
   }
 }
 

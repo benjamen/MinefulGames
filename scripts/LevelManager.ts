@@ -31,38 +31,30 @@ export class LevelManager {
         }
     }
     
-
-
+    // In LevelManager.ts - Update spawnMobs
     private async spawnMobs(dimension: Dimension) {
         try {
             const arena = this.game.config.arenaLocation;
-            
-            // Get mob configuration from the current level
             const currentLevel = this.game.currentLevel;
             const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
             const mobType = MinecraftEntityTypes[mobTypeKey];
-            const mobCount = currentLevel.mobCount; // Use mobCount from level configuration
-    
-            const mobsToSpawn = [
-                { type: mobType, count: mobCount }
-            ];
-    
-            for (const mob of mobsToSpawn) {
-                for (let i = 0; i < mob.count; i++) {
-                    const spawnPos = this.randomArenaPosition();
-                    
-                    try {
-                        // Spawn the mob
-                        await dimension.runCommandAsync(
-                            `summon ${mob.type} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
-                        );
-                        console.log(`Spawned ${mob.type} at ${JSON.stringify(spawnPos)}`);
-                    } catch (error) {
-                        console.warn(`Failed to spawn ${mob.type}:`, error);
-                    }
+            
+            // Clear existing mobs first
+            await this.clearArenaEntities(dimension);
+            
+            // Spawn mobs with slight delay between each
+            for (let i = 0; i < currentLevel.mobCount; i++) {
+                const spawnPos = this.randomArenaPosition();
+                try {
+                    await dimension.runCommandAsync(
+                        `summon ${mobType} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
+                    );
+                    console.log(`Spawned ${mobType} at ${JSON.stringify(spawnPos)}`);
+                    await system.runTimeout(() => {}, 5); // Small delay between spawns
+                } catch (error) {
+                    console.warn(`Failed to spawn ${mobType}:`, error);
                 }
             }
-    
         } catch (error) {
             console.error("Mob spawning failed:", error);
         }
@@ -107,15 +99,15 @@ export class LevelManager {
                 const oldBlock = dimension.getBlock(this.currentTargetBlockPos);
                 oldBlock?.setPermutation(BlockPermutation.resolve("air"));
             }
-
-            const pos = this.randomArenaPosition();
-            const block = dimension.getBlock(pos);
+    
+            const pos = this.randomArenaPosition(); // Just Vector3
+            const block = dimension.getBlock(pos); // Pass dimension separately
             
             if (block?.isValid()) {
                 block.setPermutation(
                     BlockPermutation.resolve(this.game.currentLevel.blockToBreak)
                 );
-                this.currentTargetBlockPos = pos; // Track new position
+                this.currentTargetBlockPos = pos;
                 console.log(`Placed target block at ${JSON.stringify(pos)}`);
             }
         } catch (error) {
@@ -123,14 +115,13 @@ export class LevelManager {
         }
     }
 
-
-    private randomArenaPosition(): Vector3 {
+    private randomArenaPosition(): Vector3 { // Returns just Vector3 without dimension
         const arena = this.game.config.arenaLocation;
         const size = this.game.config.arenaSize;
         
         return {
             x: arena.x - Math.floor(size.x/2) + Math.floor(Math.random() * size.x),
-            y: arena.y + 1 + Math.floor(Math.random() * (size.y - 2)), // Ensure Y stays within arena
+            y: arena.y + 1 + Math.floor(Math.random() * (size.y - 2)),
             z: arena.z - Math.floor(size.z/2) + Math.floor(Math.random() * size.z)
         };
     }

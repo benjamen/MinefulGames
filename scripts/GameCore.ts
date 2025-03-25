@@ -83,14 +83,18 @@ export class GameCore {
                 }
 
                 player.runCommand(`gamemode ${this.config.defaultGamemode}`);
+                // In GameCore.ts - initializePlayers
                 const spawnPoint = {
                     x: this.config.arenaLocation.x,
                     y: this.config.arenaLocation.y + 2,
-                    z: this.config.arenaLocation.z,
-                    dimension: this.config.arenaLocation.dimension
+                    z: this.config.arenaLocation.z
                 };
-                player.setSpawnPoint(spawnPoint);
-                player.teleport(spawnPoint);
+
+                player.teleport(spawnPoint, {
+                    dimension: this.config.arenaLocation.dimension // Dimension passed separately
+                });
+
+
                 player.runCommand("scoreboard players add @s mtd_diamonds 0");
             });
         });
@@ -108,8 +112,47 @@ export class GameCore {
                 this.handlePlayerDeath(event.deadEntity);
             }
         });
-    }
 
+        this.eventManager.subscribe(world.afterEvents.playerSpawn, (event) => {
+            if (this.players.includes(event.player)) {
+                this.checkPlayerBounds(event.player);
+            }
+        });
+        
+        // Periodic boundary check
+        this.eventManager.subscribe(system.afterEvents.scriptEventReceive, () => {
+            this.players.forEach(player => this.checkPlayerBounds(player));
+        });
+    }    
+    
+    private checkPlayerBounds(player: Player) {
+        const arena = this.config.arenaLocation;
+        const size = this.config.arenaSize;
+        
+        const playerLoc = player.location;
+        const xMin = arena.x - size.x/2;
+        const xMax = arena.x + size.x/2;
+        const zMin = arena.z - size.z/2;
+        const zMax = arena.z + size.z/2;
+        
+        if (playerLoc.x < xMin || playerLoc.x > xMax || 
+            playerLoc.z < zMin || playerLoc.z > zMax) {
+            // Teleport player back to arena center
+            // In GameCore.ts - checkPlayerBounds
+            player.teleport(
+                {
+                    x: arena.x,
+                    y: arena.y + 2,
+                    z: arena.z
+                },
+                {
+                    dimension: arena.dimension
+                }
+            );
+            player.sendMessage("§cStay in the arena!");
+        }
+    }
+    
     // GameCore.ts - Update handleBlockBreak
     private handleBlockBreak(player: Player) {
         system.run(() => {
@@ -218,31 +261,11 @@ export class GameCore {
     }
 
     // GameCore.ts - Update endGame method
+// In GameCore.ts - Update endGame method
 private endGame(success = false) {
     setWorldSettings("gameEnd");
     
-    // Cleanup players
-    this.players.forEach(player => {
-        try {
-            const inv = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
-            inv.container?.clearAll();
-            player.runCommand(`gamemode creative`);
-            player.teleport(this.config.lobbyLocation);
-            player.runCommand("scoreboard players reset @s mtd_diamonds");
-        } catch (error) {
-            console.error("Player cleanup failed:", error);
-        }
-    });
-
-    // Single cleanup call
-    this.levelManager.cleanup();
-    clearArena(this.config.arenaLocation, this.config.arenaSize);
-    
-    // Clear intervals
-    if (this.gameInterval) system.clearRun(this.gameInterval);
-    if (this.levelTimeout) system.clearRun(this.levelTimeout);
-    
-    // Display final score before resetting
+    // Display final score before any cleanup
     const endMessage = success ? "§6§l🏆 GAME COMPLETE! 🏆" : "§c§l❌ GAME OVER ❌";
     this.players.forEach(player => {
         player.sendMessage(endMessage);
@@ -254,18 +277,36 @@ private endGame(success = false) {
         } catch (error) {
             console.error("Failed to get score:", error);
         }
-        
-        player.runCommand(success ? "playsound random.levelup @s" : "playsound mob.wither.death @s");
-        system.runTimeout(() => {
-            player.teleport(this.config.lobbyLocation);
-            player.removeTag("MTD");
-        }, 100);
     });
 
-    // Reset scoreboard once after everything else
+    // Single cleanup operations
+    this.levelManager.cleanup();
+    clearArena(this.config.arenaLocation, this.config.arenaSize);
+    
+    // Clear intervals
+    if (this.gameInterval) system.clearRun(this.gameInterval);
+    if (this.levelTimeout) system.clearRun(this.levelTimeout);
+
+    // Player cleanup with delay
     system.runTimeout(() => {
+        this.players.forEach(player => {
+            try {
+                const inv = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
+                inv.container?.clearAll();
+                player.runCommand(`gamemode creative`);
+                player.teleport(this.config.lobbyLocation);
+                player.runCommand("scoreboard players reset @s mtd_diamonds");
+                player.removeTag("MTD");
+            } catch (error) {
+                console.error("Player cleanup failed:", error);
+            }
+        });
+
+        // Reset scoreboard once after player cleanup
         resetScoreboard(this.config.scoreboardConfig.objectiveId);
+        
         if (this.onGameEnd) this.onGameEnd();
-    }, 120);
+    }, 100);
 }
+
 }
