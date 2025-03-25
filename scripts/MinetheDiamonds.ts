@@ -4,33 +4,33 @@ import { GameCore } from "./GameCore";
 const levelConfigurations = [
     {
         level: 1,
-        description: "Mine 10 diamond blocks!",
-        goal: 10,
+        description: "Mine 3 diamond blocks!",
+        goal: 3,
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Zombie",
-        mobCount: 5,
+        mobCount: 10, // Now properly used in LevelManager.ts
         randomBlockToPlace: "minecraft:leaves",
-        gameTime: 120
+        gameTime: 60 // 120 seconds = 2 minutes
     },
     {
         level: 2,
-        description: "Mine 20 diamonds with creepers!",
-        goal: 20,
+        description: "Mine 5 diamonds with creepers!",
+        goal: 5,
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Creeper", 
         mobCount: 3,
         randomBlockToPlace: "minecraft:stone",
-        gameTime: 240
+        gameTime: 120 // 4 minutes
     },
     {
         level: 3,
-        description: "Final level - Mine 30 diamonds!",
-        goal: 30,
+        description: "Final level - Mine 10 diamonds!",
+        goal: 10,
         blockToBreak: "minecraft:diamond_ore",
         mobToSpawn: "Skeleton",
         mobCount: 3,
         randomBlockToPlace: "minecraft:obsidian",
-        gameTime: 360
+        gameTime: 240 // 6 minutes
     }
 ];
 

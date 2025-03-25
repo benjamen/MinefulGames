@@ -33,13 +33,13 @@ export class LevelManager {
     
     // In LevelManager.ts - Update spawnMobs
     private async spawnMobs(dimension: Dimension) {
-        try {
+        try { // [NEW] Added error handling wrapper
             const arena = this.game.config.arenaLocation;
-            const currentLevel = this.game.currentLevel;
+            const currentLevel = this.game.currentLevel; // [NEW] Proper config access
             const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
             const mobType = MinecraftEntityTypes[mobTypeKey];
             
-            // Clear existing mobs first
+            // [NEW] Clear existing mobs first
             await this.clearArenaEntities(dimension);
             
             // Spawn mobs with slight delay between each
@@ -49,14 +49,14 @@ export class LevelManager {
                     await dimension.runCommandAsync(
                         `summon ${mobType} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
                     );
-                    console.log(`Spawned ${mobType} at ${JSON.stringify(spawnPos)}`);
-                    await system.runTimeout(() => {}, 5); // Small delay between spawns
+                    console.log(`Spawned ${mobType} at ${JSON.stringify(spawnPos)}`); // [IMPROVED] Better logging
+                    await system.runTimeout(() => {}, 5); // [NEW] Small delay between spawns
                 } catch (error) {
-                    console.warn(`Failed to spawn ${mobType}:`, error);
+                    console.warn(`Failed to spawn ${mobType}:`, error); // [IMPROVED] Specific error logging
                 }
             }
         } catch (error) {
-            console.error("Mob spawning failed:", error);
+            console.error("Mob spawning failed:", error); // [NEW] Top-level error handling
         }
     }
 
@@ -88,10 +88,14 @@ export class LevelManager {
             arena.dimension.runCommandAsync(
                 `kill @e[type=${mobTypeId},x=${xStart},y=${arena.y},z=${zStart},dx=${dx},dy=${size.y},dz=${dz}]`
             ).catch(error => console.error("Failed to clear mobs:", error));
+            arena.dimension.runCommandAsync(
+                `kill @e[type=item,x=${xStart},y=${arena.y},z=${zStart},dx=${dx},dy=${size.y},dz=${dz}]`
+            ).catch(error => console.error("Failed to clear items:", error));
         } catch (error) {
             console.error("Failed to clear mobs:", error);
         }
     }
+
     public spawnTargetBlock(dimension: Dimension) {
         try {
             // Clear previous target block

@@ -168,10 +168,19 @@ export class GameCore {
         });
     }
 
+        // In GameCore.ts - Update handlePlayerDeath
     private handlePlayerDeath(player: Player) {
         this.lives--;
+        const deathLocation = player.location;
+        
         if (this.lives > 0) {
-            system.runTimeout(() => this.playerManager.respawnPlayer(player), 20);
+            system.runTimeout(() => {
+                this.playerManager.respawnPlayer(player);
+                // Clear items around death location
+                player.dimension.runCommandAsync(
+                    `kill @e[type=item,x=${deathLocation.x},y=${deathLocation.y},z=${deathLocation.z},dx=5,dy=5,dz=5]`
+                );
+            }, 20);
         } else {
             this.endGame();
         }
@@ -182,7 +191,7 @@ export class GameCore {
     }
 
     private startLevel() {
-        this.remainingTime = this.currentLevel.gameTime * 20;
+        this.remainingTime = this.currentLevel.gameTime * 20; // Convert seconds to ticks
         
             // Show level title
         this.players.forEach(player => {
