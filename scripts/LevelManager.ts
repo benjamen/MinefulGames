@@ -1,60 +1,34 @@
 import { world, system, BlockPermutation, Vector3, Dimension, Block } from "@minecraft/server";
-import { MinecraftDimensionTypes, MinecraftEntityTypes } from "@minecraft/vanilla-data";
+import { MinecraftEntityTypes } from "@minecraft/vanilla-data";
+import { BaseLevelManager } from "./BaseLevelManager";
 import type { GameCore } from "./GameCore";
-import { Vector3Utils } from "@minecraft/math";
 
-export class LevelManager {
+export class LevelManager extends BaseLevelManager {
     private mobSpawnInterval?: number;
-    private currentTargetBlockPos: Vector3 | undefined;
-    private randomBlockPositions: Vector3[] = []; // Track placed random block positions
-    
-    constructor(private game: GameCore) {}
+
+    constructor(game: GameCore) {
+        super(game);
+    }
 
     initializeLevel() {
         try {
             const dimension = this.game.config.arenaLocation.dimension;
-            
-            // Clear existing entities in the arena first
             this.clearArenaEntities(dimension);
-            
-            // Reset tracked block positions
             this.randomBlockPositions = [];
             
             this.placeRandomBlocks(dimension);
             this.spawnTargetBlock(dimension);
-            
-            // Spawn initial mobs
             this.spawnMobs(dimension);
-            
         } catch (error) {
             console.error("Level initialization failed:", error);
         }
     }
 
-    public preGameCleanup() {
-        const dimension = this.game.config.arenaLocation.dimension;
-        const arena = this.game.config.arenaLocation;
-        const size = this.game.config.arenaSize;
-        
-        // Calculate arena bounds
-        const xStart = arena.x - Math.floor(size.x / 2);
-        const zStart = arena.z - Math.floor(size.z / 2);
-        
-        // Clear all entities and items
-        dimension.runCommandAsync(
-            `kill @e[x=${xStart},y=${arena.y},z=${zStart},dx=${size.x},dy=${size.y},dz=${size.z}]`
-        ).catch(error => console.error("Pre-game cleanup failed:", error));
-    }
-
-    
-    // In LevelManager.ts - Update spawnMobs
     private async spawnMobs(dimension: Dimension) {
         try {
             await this.clearArenaEntities(dimension);
-            
             const currentLevel = this.game.currentLevel;
             
-            // Handle multiple mob types
             for (const mobConfig of currentLevel.mobsToSpawn) {
                 const mobType = MinecraftEntityTypes[mobConfig.type as keyof typeof MinecraftEntityTypes];
                 
@@ -75,142 +49,55 @@ export class LevelManager {
         }
     }
 
-    // LevelManager.ts - Update cleanup method
-    public cleanup() {
-        // Clear existing mob spawn interval
-        if (this.mobSpawnInterval) {
-            system.clearRun(this.mobSpawnInterval);
-            this.mobSpawnInterval = undefined;
-        }
-
-        // Kill all mobs from the current level
-        try {
-            const currentLevel = this.game.currentLevel;
-            const arena = this.game.config.arenaLocation;
-            const size = this.game.config.arenaSize;
-            
-            // Get mob type ID from level configuration
-            const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
-            const mobTypeId = mobTypeKey.toLowerCase(); // Ensure lowercase for command
-            
-            // Calculate arena bounds
-            const xStart = arena.x - Math.floor(size.x / 2);
-            const zStart = arena.z - Math.floor(size.z / 2);
-            const dx = size.x;
-            const dz = size.z;
-            
-            // Execute kill command for mobs in arena area
-            arena.dimension.runCommandAsync(
-                `kill @e[type=${mobTypeId},x=${xStart},y=${arena.y},z=${zStart},dx=${dx},dy=${size.y},dz=${dz}]`
-            ).catch(error => console.error("Failed to clear mobs:", error));
-            arena.dimension.runCommandAsync(
-                `kill @e[type=item,x=${xStart},y=${arena.y},z=${zStart},dx=${dx},dy=${size.y},dz=${dz}]`
-            ).catch(error => console.error("Failed to clear items:", error));
-        } catch (error) {
-            console.error("Failed to clear mobs:", error);
-        }
-    }
-
-    public spawnTargetBlock(dimension: Dimension) {
-        try {
-            // Clear previous target block
-            if (this.currentTargetBlockPos) {
-                const oldBlock = dimension.getBlock(this.currentTargetBlockPos);
-                oldBlock?.setPermutation(BlockPermutation.resolve("air"));
-            }
-    
-            const pos = this.randomArenaPosition(); // Just Vector3
-            const block = dimension.getBlock(pos); // Pass dimension separately
-            
-            if (block?.isValid()) {
-                block.setPermutation(
-                    BlockPermutation.resolve(this.game.currentLevel.blockToBreak)
-                );
-                this.currentTargetBlockPos = pos;
-                console.log(`Placed target block at ${JSON.stringify(pos)}`);
-            }
-        } catch (error) {
-            console.error("Block spawn failed:", error);
-        }
-    }
-
-    private randomArenaPosition(): Vector3 { // Returns just Vector3 without dimension
-        const arena = this.game.config.arenaLocation;
-        const size = this.game.config.arenaSize;
-        
-        return {
-            x: arena.x - Math.floor(size.x/2) + Math.floor(Math.random() * size.x),
-            y: arena.y + 1 + Math.floor(Math.random() * (size.y - 2)),
-            z: arena.z - Math.floor(size.z/2) + Math.floor(Math.random() * size.z)
-        };
-    }
-
-    private clearArenaEntities(dimension: Dimension) {
-        const arena = this.game.config.arenaLocation;
-        const size = this.game.config.arenaSize;
-        
-        // Calculate arena bounds precisely
-        const xStart = arena.x - Math.floor(size.x / 2);
-        const zStart = arena.z - Math.floor(size.z / 2);
-        
-        // Kill all non-player entities in the arena
-        dimension.runCommandAsync(
-            `kill @e[type=!player,x=${xStart},y=${arena.y},z=${zStart},dx=${size.x},dy=${size.y},dz=${size.z}]`
-        );
-    }
-    
-    private isValidBlockPlacement(block: Block): boolean {
-        const arena = this.game.config.arenaLocation;
-        const size = this.game.config.arenaSize;
-        const buffer = 1; // 1 block buffer from walls/floor/ceiling
-        
-        const xStart = arena.x - Math.floor(size.x / 2);
-        const xEnd = arena.x + Math.floor(size.x / 2);
-        const yStart = arena.y;
-        const yEnd = arena.y + size.y;
-        const zStart = arena.z - Math.floor(size.z / 2);
-        const zEnd = arena.z + Math.floor(size.z / 2);
-        
-        const pos = block.location;
-        
-        // Check if block is too close to walls, floor, or ceiling
-        const isTooCloseToWall = 
-            pos.x <= xStart + buffer || pos.x >= xEnd - buffer ||
-            pos.z <= zStart + buffer || pos.z >= zEnd - buffer;
-        
-        const isTooCloseToFloorOrCeiling = 
-            pos.y <= yStart + buffer || pos.y >= yEnd - buffer;
-        
-        return !isTooCloseToWall && !isTooCloseToFloorOrCeiling;
-    }
-    
     private placeRandomBlocks(dimension: Dimension) {
-        const arena = this.game.config.arenaLocation;
-        const blockTypesToPlace = [
-            this.game.currentLevel.randomBlockToPlace
-        ];
-        
-        const blockPlacementAttempts = 30; // Increased attempts for better placement
+        const blockType = this.game.currentLevel.randomBlockToPlace;
+        const blockPlacementAttempts = 30;
         
         for (let i = 0; i < blockPlacementAttempts; i++) {
             const pos = this.randomArenaPosition();
             const block = dimension.getBlock(pos);
             
             if (block && this.isValidBlockPlacement(block)) {
-                // Additional check to prevent diamond ore in invalid spots
-                if (this.game.currentLevel.blockToBreak === "minecraft:diamond_ore") {
-                    block.setPermutation(
-                        BlockPermutation.resolve(this.game.currentLevel.blockToBreak)
-                    );
-                    this.randomBlockPositions.push(pos);
-                } else {
-                    const blockType = blockTypesToPlace[Math.floor(Math.random() * blockTypesToPlace.length)];
-                    block.setPermutation(BlockPermutation.resolve(blockType));
-                    this.randomBlockPositions.push(pos);
-                }
-                
+                block.setPermutation(BlockPermutation.resolve(blockType));
+                this.randomBlockPositions.push(pos);
                 if (this.randomBlockPositions.length >= 15) break;
             }
         }
+    }
+
+    public spawnTargetBlock(dimension: Dimension) {
+        if (this.isSpawningTargetBlock) return;
+        this.isSpawningTargetBlock = true;
+        
+        try {
+            if (this.currentTargetBlockPos) {
+                const oldBlock = dimension.getBlock(this.currentTargetBlockPos);
+                oldBlock?.setPermutation(BlockPermutation.resolve("air"));
+            }
+
+            const pos = this.randomArenaPosition();
+            const block = dimension.getBlock(pos);
+            
+            if (block?.isValid()) {
+                block.setPermutation(
+                    BlockPermutation.resolve(this.game.currentLevel.blockToBreak)
+                );
+                this.currentTargetBlockPos = pos;
+            }
+        } catch (error) {
+            console.error("Target block spawn failed:", error);
+        } finally {
+            this.isSpawningTargetBlock = false;
+        }
+    }
+
+    cleanup() {
+        if (this.mobSpawnInterval) system.clearRun(this.mobSpawnInterval);
+        // Add game-specific cleanup if needed
+    }
+
+    preGameCleanup() {
+        const dimension = this.game.config.arenaLocation.dimension;
+        this.clearArenaEntities(dimension);
     }
 }

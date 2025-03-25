@@ -25,6 +25,7 @@ export class GameCore {
     private gameInterval?: number;
     private levelTimeout?: number;
 
+    // In GameCore.ts constructor
     constructor(
         public config: {
             name: string;
@@ -35,7 +36,7 @@ export class GameCore {
                 includeWalls: boolean;
                 includeFloor: boolean;
                 includeRoof: boolean;
-                lighting?: boolean; // Add this optional property
+                lighting?: boolean;
             };
             lobbyLocation: { x: number; y: number; z: number };
             startingInventory: Array<{ item: string; count: number }>;
@@ -43,6 +44,8 @@ export class GameCore {
             minPlayers: number;
             lives: number;
             scoreboardConfig: { objectiveId: string; displayName: string };
+            respawnStrategy?: 'instant' | 'delayed';
+            playerTag: string;
         },
         onGameEnd?: () => void
     ) {

@@ -73,6 +73,7 @@ export function MinetheDiamonds(
         }
     }
 
+        // In MinetheDiamonds.ts
     const game = new GameCore({
         name: "Mine the Diamonds!",
         levelConfigurations,
@@ -87,11 +88,11 @@ export function MinetheDiamonds(
             includeWalls: true,
             includeFloor: true,
             includeRoof: false,
-            lighting: false // Default to no lighting
+            lighting: false
         },
         lobbyLocation: { 
-            x: arenaX - 25,  // Offset lobby from arena 
-            y: -60, 
+            x: arenaX - 25,
+            y: -60,
             z: arenaZ 
         },
         startingInventory: [
@@ -104,7 +105,9 @@ export function MinetheDiamonds(
         scoreboardConfig: {
             objectiveId: "mtd_diamonds",
             displayName: "Diamonds Mined"
-        }
+        },
+        playerTag: "MTD",
+        respawnStrategy: 'instant'
     }, () => {
         isGameActive = false;
         log("Game ended", 1);
