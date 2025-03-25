@@ -35,6 +35,7 @@ export class GameCore {
                 includeWalls: boolean;
                 includeFloor: boolean;
                 includeRoof: boolean;
+                lighting?: boolean; // Add this optional property
             };
             lobbyLocation: { x: number; y: number; z: number };
             startingInventory: Array<{ item: string; count: number }>;

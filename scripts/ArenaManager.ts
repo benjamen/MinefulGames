@@ -15,6 +15,12 @@ interface ArenaDimensions {
   zSize: number;
 }
 
+interface ArenaCreationOptions {
+  includeWalls?: boolean;
+  includeFloor?: boolean;
+  includeRoof?: boolean;
+  lighting?: boolean; // Add this
+}
 /**
  * Set up the arena boundaries and structure.
  * @param arenaLocation The offset position for the arena ({ x, y, z })
@@ -23,11 +29,7 @@ interface ArenaDimensions {
 export function setupArena(
   arenaLocation: { x: number; y: number; z: number },
   arenaSize: { x: number; y: number; z: number },
-  options: {
-    includeWalls?: boolean;
-    includeFloor?: boolean;
-    includeRoof?: boolean;
-  } = { includeWalls: true, includeFloor: true, includeRoof: true } // Default to including all components
+  options: ArenaCreationOptions // Use the interface here
 ) {
   // Verify if the chunks at the arena's location are loaded
   const testBlock = overworld.getBlock({
@@ -62,9 +64,10 @@ export function setupArena(
 export function createArena(
   dimensions: ArenaDimensions,
   options: {
-    includeWalls?: boolean;
-    includeFloor?: boolean;
-    includeRoof?: boolean;
+      includeWalls?: boolean;
+      includeFloor?: boolean;
+      includeRoof?: boolean;
+      lighting?: boolean; // New lighting option
   }
 ) {
   let airBlockPerm = BlockPermutation.resolve("minecraft:air");
@@ -120,6 +123,18 @@ export function createArena(
       dimensions.zOffset + dimensions.zSize / 2
     );
   }
+
+      // Add lighting if roof is enabled and lighting is true
+  if (options.includeRoof && options.lighting) {
+        addArenaLighting(
+            dimensions.xOffset,
+            dimensions.yOffset + dimensions.ySize - 1, // Just below roof
+            dimensions.zOffset,
+            dimensions.xSize,
+            dimensions.zSize
+        );
+  }
+
 }
 /**
  * Clear the arena by removing all non-player entities and filling the arena area with air.
@@ -189,6 +204,20 @@ export function teleportPlayersToLobby(
     });
   } catch (error) {
     console.error("Teleport error:", error);
+  }
+}
+
+function addArenaLighting(centerX: number, yLevel: number, centerZ: number, sizeX: number, sizeZ: number) {
+  const overworld = world.getDimension(MinecraftDimensionTypes.Overworld);
+  const spacing = 5; // Lights every 5 blocks
+  
+  for (let x = centerX - Math.floor(sizeX/2); x <= centerX + Math.floor(sizeX/2); x += spacing) {
+      for (let z = centerZ - Math.floor(sizeZ/2); z <= centerZ + Math.floor(sizeZ/2); z += spacing) {
+          const block = overworld.getBlock({x, y: yLevel, z});
+          if (block) {
+              block.setPermutation(BlockPermutation.resolve("minecraft:glowstone"));
+          }
+      }
   }
 }
 

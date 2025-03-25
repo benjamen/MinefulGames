@@ -160,9 +160,9 @@ export class LevelManager {
     }
     
     private isValidBlockPlacement(block: Block): boolean {
-        // Check block is not in walls, floor, or ceiling
         const arena = this.game.config.arenaLocation;
         const size = this.game.config.arenaSize;
+        const buffer = 1; // 1 block buffer from walls/floor/ceiling
         
         const xStart = arena.x - Math.floor(size.x / 2);
         const xEnd = arena.x + Math.floor(size.x / 2);
@@ -173,15 +173,15 @@ export class LevelManager {
         
         const pos = block.location;
         
-        // Check if block is on the walls, floor, or ceiling
-        const isWall = 
-            pos.x === xStart || pos.x === xEnd ||
-            pos.z === zStart || pos.z === zEnd;
+        // Check if block is too close to walls, floor, or ceiling
+        const isTooCloseToWall = 
+            pos.x <= xStart + buffer || pos.x >= xEnd - buffer ||
+            pos.z <= zStart + buffer || pos.z >= zEnd - buffer;
         
-        const isFloorOrCeiling = 
-            pos.y === yStart || pos.y === yEnd;
+        const isTooCloseToFloorOrCeiling = 
+            pos.y <= yStart + buffer || pos.y >= yEnd - buffer;
         
-        return !isWall && !isFloorOrCeiling;
+        return !isTooCloseToWall && !isTooCloseToFloorOrCeiling;
     }
     
     private placeRandomBlocks(dimension: Dimension) {
@@ -190,22 +190,25 @@ export class LevelManager {
             this.game.currentLevel.randomBlockToPlace
         ];
         
-        const blockPlacementAttempts = 20; // More attempts to ensure valid placements
+        const blockPlacementAttempts = 30; // Increased attempts for better placement
         
         for (let i = 0; i < blockPlacementAttempts; i++) {
             const pos = this.randomArenaPosition();
             const block = dimension.getBlock(pos);
             
             if (block && this.isValidBlockPlacement(block)) {
-                const blockType = blockTypesToPlace[Math.floor(Math.random() * blockTypesToPlace.length)];
+                // Additional check to prevent diamond ore in invalid spots
+                if (this.game.currentLevel.blockToBreak === "minecraft:diamond_ore") {
+                    block.setPermutation(
+                        BlockPermutation.resolve(this.game.currentLevel.blockToBreak)
+                    );
+                    this.randomBlockPositions.push(pos);
+                } else {
+                    const blockType = blockTypesToPlace[Math.floor(Math.random() * blockTypesToPlace.length)];
+                    block.setPermutation(BlockPermutation.resolve(blockType));
+                    this.randomBlockPositions.push(pos);
+                }
                 
-                block.setPermutation(
-                    BlockPermutation.resolve(blockType)
-                );
-                
-                this.randomBlockPositions.push(pos);
-                
-                // Limit random blocks
                 if (this.randomBlockPositions.length >= 15) break;
             }
         }

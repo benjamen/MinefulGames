@@ -86,7 +86,8 @@ export function MinetheDiamonds(
         arenaSettings: {
             includeWalls: true,
             includeFloor: true,
-            includeRoof: false
+            includeRoof: false,
+            lighting: false // Default to no lighting
         },
         lobbyLocation: { 
             x: arenaX - 25,  // Offset lobby from arena 
