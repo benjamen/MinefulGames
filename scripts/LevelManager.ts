@@ -30,33 +30,48 @@ export class LevelManager {
             console.error("Level initialization failed:", error);
         }
     }
+
+    public preGameCleanup() {
+        const dimension = this.game.config.arenaLocation.dimension;
+        const arena = this.game.config.arenaLocation;
+        const size = this.game.config.arenaSize;
+        
+        // Calculate arena bounds
+        const xStart = arena.x - Math.floor(size.x / 2);
+        const zStart = arena.z - Math.floor(size.z / 2);
+        
+        // Clear all entities and items
+        dimension.runCommandAsync(
+            `kill @e[x=${xStart},y=${arena.y},z=${zStart},dx=${size.x},dy=${size.y},dz=${size.z}]`
+        ).catch(error => console.error("Pre-game cleanup failed:", error));
+    }
+
     
     // In LevelManager.ts - Update spawnMobs
     private async spawnMobs(dimension: Dimension) {
-        try { // [NEW] Added error handling wrapper
-            const arena = this.game.config.arenaLocation;
-            const currentLevel = this.game.currentLevel; // [NEW] Proper config access
-            const mobTypeKey = currentLevel.mobToSpawn as keyof typeof MinecraftEntityTypes;
-            const mobType = MinecraftEntityTypes[mobTypeKey];
-            
-            // [NEW] Clear existing mobs first
+        try {
             await this.clearArenaEntities(dimension);
             
-            // Spawn mobs with slight delay between each
-            for (let i = 0; i < currentLevel.mobCount; i++) {
-                const spawnPos = this.randomArenaPosition();
-                try {
-                    await dimension.runCommandAsync(
-                        `summon ${mobType} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
-                    );
-                    console.log(`Spawned ${mobType} at ${JSON.stringify(spawnPos)}`); // [IMPROVED] Better logging
-                    await system.runTimeout(() => {}, 5); // [NEW] Small delay between spawns
-                } catch (error) {
-                    console.warn(`Failed to spawn ${mobType}:`, error); // [IMPROVED] Specific error logging
+            const currentLevel = this.game.currentLevel;
+            
+            // Handle multiple mob types
+            for (const mobConfig of currentLevel.mobsToSpawn) {
+                const mobType = MinecraftEntityTypes[mobConfig.type as keyof typeof MinecraftEntityTypes];
+                
+                for (let i = 0; i < mobConfig.count; i++) {
+                    const spawnPos = this.randomArenaPosition();
+                    try {
+                        await dimension.runCommandAsync(
+                            `summon ${mobType} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`
+                        );
+                        await system.runTimeout(() => {}, 5);
+                    } catch (error) {
+                        console.warn(`Failed to spawn ${mobConfig.type}:`, error);
+                    }
                 }
             }
         } catch (error) {
-            console.error("Mob spawning failed:", error); // [NEW] Top-level error handling
+            console.error("Mob spawning failed:", error);
         }
     }
 

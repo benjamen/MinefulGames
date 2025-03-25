@@ -52,6 +52,8 @@ export class GameCore {
     }
 
     public startGame() {
+        this.levelManager.preGameCleanup();
+        
         setWorldSettings("gameStart");
         clearArena(this.config.arenaLocation, this.config.arenaSize);
         setupArena(
