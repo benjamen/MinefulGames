@@ -237,8 +237,7 @@ export class GameCore {
         if (this.gameInterval) system.clearRun(this.gameInterval);
         if (this.levelTimeout) system.clearRun(this.levelTimeout);
         
-        resetScoreboard(this.config.scoreboardConfig.objectiveId);
-        clearArena(this.config.arenaLocation, this.config.arenaSize);
+
 
         const endMessage = success ? "§6§l🏆 GAME COMPLETE! 🏆" : "§c§l❌ GAME OVER ❌";
         this.players.forEach(player => {
@@ -251,6 +250,9 @@ export class GameCore {
             } catch (error) {
                 console.error("Failed to get score:", error);
             }
+
+            resetScoreboard(this.config.scoreboardConfig.objectiveId);
+            clearArena(this.config.arenaLocation, this.config.arenaSize);
             
             player.runCommand(success ? "playsound random.levelup @s" : "playsound mob.wither.death @s");
             system.runTimeout(() => {

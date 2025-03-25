@@ -181,9 +181,7 @@ export class LevelManager {
     private placeRandomBlocks(dimension: Dimension) {
         const arena = this.game.config.arenaLocation;
         const blockTypesToPlace = [
-            this.game.currentLevel.randomBlockToPlace,
-            // Randomly include diamond ore with less frequency
-            ...(Math.random() < 0.3 ? ["minecraft:diamond_ore"] : [])
+            this.game.currentLevel.randomBlockToPlace
         ];
         
         const blockPlacementAttempts = 20; // More attempts to ensure valid placements
