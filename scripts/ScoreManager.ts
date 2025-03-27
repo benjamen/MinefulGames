@@ -1,36 +1,35 @@
-import { world, DisplaySlotId } from "@minecraft/server";
+import { world, DisplaySlotId, Player } from "@minecraft/server";
+
+
+// In ScoreManager.ts - Update updatePlayerScore()
+// In ScoreManager.ts
+export function updatePlayerScore(player: Player, objectiveId: string, value: number) {
+  try {
+      player.runCommand(`scoreboard players set @s ${objectiveId} ${value}`);
+  } catch (error) {
+      console.error("Score update failed:", error);
+  }
+}
 
 export function setupScoreboard(objectiveId: string, displayName: string) {
-    try {
-        // Remove existing objective if it exists
-        try {
-            world.scoreboard.removeObjective(objectiveId);
-        } catch {} 
-        
-        // Create fresh objective and display it
-        const objective = world.scoreboard.addObjective(objectiveId, displayName);
-        world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, { objective });
-        return objective;
-    } catch (error) {
-        console.error("Scoreboard setup failed:", error);
-        return null;
-    }
+  try {
+      world.scoreboard.removeObjective(objectiveId);
+      world.scoreboard.addObjective(objectiveId, displayName);
+      world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
+          objective: world.scoreboard.getObjective(objectiveId)!,
+          sortOrder: 1
+      });
+  } catch (error) {
+      console.error("Scoreboard setup failed:", error);
+  }
 }
 
-export function updatePlayerScore(player: any, objectiveId: string, points: number) {
-    try {
-        // Add to existing score instead of setting it
-        player.runCommand(`scoreboard players add @s ${objectiveId} ${points}`);
-    } catch (error) {
-        console.error("Score update failed:", error);
-    }
-}
 
 export function resetScoreboard(objectiveId: string) {
-    try {
-        world.scoreboard.removeObjective(objectiveId);
-        world.scoreboard.clearObjectiveAtDisplaySlot(DisplaySlotId.Sidebar);
-    } catch (error) {
-        console.error("Scoreboard reset failed:", error);
-    }
+  try {
+    world.scoreboard.removeObjective(objectiveId);
+    world.scoreboard.clearObjectiveAtDisplaySlot(DisplaySlotId.Sidebar);
+  } catch (error) {
+    console.error("Scoreboard reset failed:", error);
+  }
 }

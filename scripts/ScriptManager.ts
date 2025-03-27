@@ -4,7 +4,9 @@ export default class ScriptManager {
   tickCount = 0;
 
   _availableFuncs: {
-    [name: string]: Array<(log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void>;
+    [name: string]: Array<
+      (log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void
+    >;
   } = {};
 
   pendingFuncs: Array<{
@@ -45,7 +47,7 @@ export default class ScriptManager {
           x: Math.floor(playerLoc.x),
           y: Math.floor(playerLoc.y),
           z: Math.floor(playerLoc.z),
-          dimension: player.dimension
+          dimension: player.dimension,
         };
 
         // Run the game function
@@ -65,16 +67,18 @@ export default class ScriptManager {
 
   runSample(
     sampleId: string,
-    snippetFunctions: Array<(log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void>,
+    snippetFunctions: Array<
+      (log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void
+    >,
     targetLocation: DimensionLocation,
     params?: string[]
   ) {
     for (let i = snippetFunctions.length - 1; i >= 0; i--) {
-      this.pendingFuncs.push({ 
-        name: sampleId, 
-        func: snippetFunctions[i], 
+      this.pendingFuncs.push({
+        name: sampleId,
+        func: snippetFunctions[i],
         location: targetLocation,
-        params 
+        params,
       });
     }
   }
@@ -115,7 +119,9 @@ export default class ScriptManager {
   }
 
   registerSamples(sampleSet: {
-    [name: string]: Array<(log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void>;
+    [name: string]: Array<
+      (log: (message: string, status?: number) => void, location: DimensionLocation, params?: string[]) => void
+    >;
   }) {
     for (const sampleKey in sampleSet) {
       if (sampleKey.length > 1 && sampleSet[sampleKey]) {
