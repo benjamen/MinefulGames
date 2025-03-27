@@ -177,7 +177,7 @@ private registerEventHandlers() {
   private handlePlayerDeath(player: Player) {
     this.lives--;
     this.broadcastMessage(`§c${player.name} died! ${this.lives} lives remaining`);
-
+  
     if (this.lives > 0) {
       const respawnDelay = this.config.respawnStrategy === "delayed" ? 20 : 0;
       system.runTimeout(() => this.playerManager.respawnPlayer(player), respawnDelay);
@@ -204,23 +204,30 @@ private registerEventHandlers() {
   }
 
 
-private gameTick() {
-  if (this.remainingTime <= 0) return;
-
-  this.remainingTime--;
-
-  // Convert ticks to total seconds only
-  const totalSeconds = Math.floor(this.remainingTime / 20);
+  private gameTick() {
+    if (this.remainingTime <= 0) return;
   
-  this.players.forEach((player) => {
+    this.remainingTime--;
+  
+    // Convert ticks to minutes and seconds
+    const totalSeconds = Math.floor(this.remainingTime / 20);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    this.players.forEach((player) => {
       player.onScreenDisplay.setActionBar(
-          `Level: ${this.currentLevelIndex + 1} | ` +
-          `Time: ${totalSeconds}s | ` + // Show total seconds
-          `Lives: ${this.lives} | ` +
-          `Score: ${this.score}/${this.currentLevel.goal}`
+        `Level: ${this.currentLevelIndex + 1} | ` +
+        `Time: ${minutes}m ${seconds}s | ` + // Show minutes and seconds
+        `Lives: ${this.lives} | ` +
+        `Score: ${this.score}/${this.currentLevel.goal}`
       );
-  });
-}
+    });
+  
+    if (this.remainingTime <= 0) {
+      this.onLevelTimeout();
+    }
+  }
+  
 
   private onLevelTimeout() {
     if (this.currentLevelIndex >= this.config.levelConfigurations.length - 1) {

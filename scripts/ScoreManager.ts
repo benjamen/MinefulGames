@@ -1,29 +1,35 @@
 import { world, DisplaySlotId, Player } from "@minecraft/server";
 
-
-// In ScoreManager.ts - Update updatePlayerScore()
-// In ScoreManager.ts
 export function updatePlayerScore(player: Player, objectiveId: string, value: number) {
   try {
-      player.runCommand(`scoreboard players set @s ${objectiveId} ${value}`);
+    const objective = world.scoreboard.getObjective(objectiveId);
+    if (objective) {
+      objective.setScore(player.name, value);
+    }
   } catch (error) {
-      console.error("Score update failed:", error);
+    console.error("Score update failed:", error);
   }
 }
 
 export function setupScoreboard(objectiveId: string, displayName: string) {
   try {
+    // Remove existing objective if it exists
+    if (world.scoreboard.getObjective(objectiveId)) {
       world.scoreboard.removeObjective(objectiveId);
-      world.scoreboard.addObjective(objectiveId, displayName);
-      world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
-          objective: world.scoreboard.getObjective(objectiveId)!,
-          sortOrder: 1
-      });
+    }
+    
+    // Create new objective
+    const objective = world.scoreboard.addObjective(objectiveId, displayName);
+    
+    // Set objective at sidebar display slot
+    world.scoreboard.setObjectiveAtDisplaySlot(
+      DisplaySlotId.Sidebar, 
+      { objective, sortOrder: 1 }
+    );
   } catch (error) {
-      console.error("Scoreboard setup failed:", error);
+    console.error("Scoreboard setup failed:", error);
   }
 }
-
 
 export function resetScoreboard(objectiveId: string) {
   try {
