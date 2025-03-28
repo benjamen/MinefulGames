@@ -22,13 +22,13 @@ export abstract class GameLevelManager {
   protected clearArenaEntities(dimension: Dimension) {
     const arena = this.game.config.arenaLocation;
     const size = this.game.config.arenaSize;
-    
+
     const entities = dimension.getEntities({
       location: { x: arena.x, y: arena.y, z: arena.z },
-      maxDistance: Math.max(size.x, size.y, size.z)
+      maxDistance: Math.max(size.x, size.y, size.z),
     });
 
-    entities.forEach(entity => {
+    entities.forEach((entity) => {
       if (!(entity instanceof Player)) {
         entity.kill();
       }
@@ -48,22 +48,16 @@ export abstract class GameLevelManager {
     const zMin = arena.z - size.z / 2 + buffer;
     const zMax = arena.z + size.z / 2 - buffer;
 
-    return (
-      pos.x >= xMin && pos.x <= xMax &&
-      pos.y >= yMin && pos.y <= yMax &&
-      pos.z >= zMin && pos.z <= zMax
-    );
+    return pos.x >= xMin && pos.x <= xMax && pos.y >= yMin && pos.y <= yMax && pos.z >= zMin && pos.z <= zMax;
   }
 
   // Abstract methods that specific game implementations must provide
   abstract initializeLevel(): void;
   abstract cleanup(): void;
   abstract preGameCleanup(): void;
-  
+
   // Optional method that games can override if needed
   handleBlockBroken(): void {
     // Optional implementation for subclasses to override
   }
-
-  
 }

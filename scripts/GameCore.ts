@@ -15,14 +15,14 @@ export enum GameState {
 
 // In GameCore.ts
 export interface GameLevel {
-    description: string;
-    gameTime: number;
-    goal?: number;
-    blockToBreak?: string;
-    randomBlockToPlace?: string;
-    customData?: {
-        mobsToSpawn?: Array<{ type: string; count: number }>;
-    };
+  description: string;
+  gameTime: number;
+  goal?: number;
+  blockToBreak?: string;
+  randomBlockToPlace?: string;
+  customData?: {
+    mobsToSpawn?: Array<{ type: string; count: number }>;
+  };
 }
 
 export interface GameConfig {
@@ -73,35 +73,35 @@ export class GameCore {
   }
 
   // In GameCore.ts - Modify startGame()
-public startGame() {
-  if (this.gameState !== GameState.WAITING) return;
-  this.gameState = GameState.ACTIVE;
+  public startGame() {
+    if (this.gameState !== GameState.WAITING) return;
+    this.gameState = GameState.ACTIVE;
 
-  this.levelManager.preGameCleanup();
-  setWorldSettings("gameStart");
-  clearArena(this.config.arenaLocation, this.config.arenaSize);
-  
-  // Add callback for arena completion
-  setupArena(this.config.arenaLocation, this.config.arenaSize, this.config.arenaSettings);
-  
-  // Delay level initialization
-  // In startGame() method, modify the scoreboard setup:
-  system.runTimeout(() => {
-    this.initializePlayers();
-    const scoreboardSuccess = setupScoreboard(
-      this.config.scoreboardConfig.objectiveId,
-      this.config.scoreboardConfig.displayName
-    );
-    
-    if (!scoreboardSuccess) {
-      console.error("Failed to initialize scoreboard");
-      return;
-    }
-    
-    this.registerEventHandlers();
-    this.startLevel();
-  }, 60); // 3 second delay
-}
+    this.levelManager.preGameCleanup();
+    setWorldSettings("gameStart");
+    clearArena(this.config.arenaLocation, this.config.arenaSize);
+
+    // Add callback for arena completion
+    setupArena(this.config.arenaLocation, this.config.arenaSize, this.config.arenaSettings);
+
+    // Delay level initialization
+    // In startGame() method, modify the scoreboard setup:
+    system.runTimeout(() => {
+      this.initializePlayers();
+      const scoreboardSuccess = setupScoreboard(
+        this.config.scoreboardConfig.objectiveId,
+        this.config.scoreboardConfig.displayName
+      );
+
+      if (!scoreboardSuccess) {
+        console.error("Failed to initialize scoreboard");
+        return;
+      }
+
+      this.registerEventHandlers();
+      this.startLevel();
+    }, 60); // 3 second delay
+  }
 
   private initializePlayers() {
     this.players = world.getAllPlayers().filter((p) => p.hasTag(this.config.playerTag));
@@ -109,8 +109,7 @@ public startGame() {
       try {
         // Force-add player to scoreboard
         // Change this line in initializePlayers():
-        world.scoreboard.getObjective(this.config.scoreboardConfig.objectiveId)
-        ?.setScore(player, 0); // Use player object instead of player.name
+       // world.scoreboard.getObjective(this.config.scoreboardConfig.objectiveId)?.setScore(player, 0); // Use player object instead of player.name
         const inventory = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
         inventory?.container?.clearAll();
 
@@ -133,28 +132,26 @@ public startGame() {
     });
   }
 
- // In GameCore.ts
-// In GameCore.ts - Modified registerEventHandlers()
-private registerEventHandlers() {
-  this.eventManager.subscribe(world.beforeEvents.playerBreakBlock, (event) => {
-    if (event.block.typeId === this.currentLevel.blockToBreak) {
+  // In GameCore.ts
+  // In GameCore.ts - Modified registerEventHandlers()
+  private registerEventHandlers() {
+    this.eventManager.subscribe(world.beforeEvents.playerBreakBlock, (event) => {
+      if (event.block.typeId === this.currentLevel.blockToBreak) {
         this.score++;
         this.totalScore++;
-        
+
         // Update ALL players' scores
-        this.players.forEach(player => {
-            updatePlayerScore(player, this.config.scoreboardConfig.objectiveId, this.score);
+        this.players.forEach((player) => {
+          updatePlayerScore(player, this.config.scoreboardConfig.objectiveId, this.score);
         });
-        
+
         this.levelManager.handleBlockBroken();
-        
+
         if (this.score >= this.currentLevel.goal!) {
-            this.nextLevel();
+          this.nextLevel();
         }
-    }
-});
-
-
+      }
+    });
 
     this.eventManager.subscribe(world.afterEvents.entityDie, (event) => {
       if (event.deadEntity instanceof Player && this.players.includes(event.deadEntity)) {
@@ -166,7 +163,6 @@ private registerEventHandlers() {
       this.players.forEach((player) => this.checkPlayerBounds(player));
     });
   }
-
 
   private checkPlayerBounds(player: Player) {
     const arena = this.config.arenaLocation;
@@ -184,11 +180,10 @@ private registerEventHandlers() {
     }
   }
 
-
   private handlePlayerDeath(player: Player) {
     this.lives--;
     this.broadcastMessage(`§c${player.name} died! ${this.lives} lives remaining`);
-  
+
     if (this.lives > 0) {
       const respawnDelay = this.config.respawnStrategy === "delayed" ? 20 : 0;
       system.runTimeout(() => this.playerManager.respawnPlayer(player), respawnDelay);
@@ -214,32 +209,30 @@ private registerEventHandlers() {
     this.levelTimeout = system.runTimeout(() => this.onLevelTimeout(), this.remainingTime);
   }
 
-
   private gameTick() {
     if (this.remainingTime <= 0) return;
-  
+
     // Decrement by 20 ticks (1 second) instead of 1
     this.remainingTime -= 20;
-  
+
     // Convert ticks to minutes and seconds
     const totalSeconds = Math.floor(this.remainingTime / 20);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-  
+
     this.players.forEach((player) => {
       player.onScreenDisplay.setActionBar(
         `Level: ${this.currentLevelIndex + 1} | ` +
-        `Time: ${minutes}m ${seconds.toString().padStart(2, '0')}s | ` + // Added leading zero
-        `Lives: ${this.lives} | ` +
-        `Score: ${this.score}/${this.currentLevel.goal}`
+          `Time: ${minutes}m ${seconds.toString().padStart(2, "0")}s | ` + // Added leading zero
+          `Lives: ${this.lives} | ` +
+          `Score: ${this.score}/${this.currentLevel.goal}`
       );
     });
-  
+
     if (this.remainingTime <= 0) {
       this.onLevelTimeout();
     }
   }
-  
 
   private onLevelTimeout() {
     if (this.currentLevelIndex >= this.config.levelConfigurations.length - 1) {
@@ -250,74 +243,73 @@ private registerEventHandlers() {
   }
 
   // In GameCore.ts - Modify nextLevel()
-public nextLevel() {
-  if (this.currentLevelIndex >= this.config.levelConfigurations.length - 1) {
+  public nextLevel() {
+    if (this.currentLevelIndex >= this.config.levelConfigurations.length - 1) {
       this.endGame(true);
       return;
+    }
+
+    // Clear existing intervals/timeouts
+    if (this.gameInterval) system.clearRun(this.gameInterval);
+    if (this.levelTimeout) system.clearRun(this.levelTimeout);
+
+    // Clean up current level
+    this.levelManager.cleanup();
+
+    // Clear arena with delay
+    // Increase delays for arena rebuild
+    system.runTimeout(() => {
+      clearArena(this.config.arenaLocation, this.config.arenaSize);
+
+      system.runTimeout(() => {
+        if (setupArena(this.config.arenaLocation, this.config.arenaSize, this.config.arenaSettings)) {
+          system.runTimeout(() => {
+            this.currentLevelIndex++;
+            this.startLevel();
+          }, 40); // 2 second delay
+        }
+      }, 40); // 2 second delay
+    }, 20); // 1 second delay
   }
 
-  // Clear existing intervals/timeouts
-  if (this.gameInterval) system.clearRun(this.gameInterval);
-  if (this.levelTimeout) system.clearRun(this.levelTimeout);
+  // Update endGame() method
+  // Update endGame() method
+  private endGame(success: boolean) {
+    this.gameState = success ? GameState.COMPLETED : GameState.FAILED;
 
-  // Clean up current level
-  this.levelManager.cleanup();
-  
-  // Clear arena with delay
-   // Increase delays for arena rebuild
-   system.runTimeout(() => {
+    // Clear all timers
+    if (this.gameInterval) system.clearRun(this.gameInterval);
+    if (this.levelTimeout) system.clearRun(this.levelTimeout);
+
+    // Cleanup world
+    setWorldSettings("gameEnd");
+    this.levelManager.cleanup();
     clearArena(this.config.arenaLocation, this.config.arenaSize);
-    
+
+    // Teleport players and reset state
     system.runTimeout(() => {
-        if (setupArena(this.config.arenaLocation, this.config.arenaSize, this.config.arenaSettings)) {
-            system.runTimeout(() => {
-                this.currentLevelIndex++;
-                this.startLevel();
-            }, 40); // 2 second delay
-        }
-    }, 40); // 2 second delay
-}, 20); // 1 second delay
-}
-
- // Update endGame() method
-// Update endGame() method
-private endGame(success: boolean) {
-  this.gameState = success ? GameState.COMPLETED : GameState.FAILED;
-  
-  // Clear all timers
-  if (this.gameInterval) system.clearRun(this.gameInterval);
-  if (this.levelTimeout) system.clearRun(this.levelTimeout);
-  
-  // Cleanup world
-  setWorldSettings("gameEnd");
-  this.levelManager.cleanup();
-  clearArena(this.config.arenaLocation, this.config.arenaSize);
-
-  // Teleport players and reset state
-  system.runTimeout(() => {
       this.players.forEach((player) => {
-          try {
-              // Reset player state
-              player.teleport(this.config.lobbyLocation);
-              player.removeTag(this.config.playerTag);
-              player.runCommand(`gamemode creative`);
-              (player.getComponent("minecraft:inventory") as EntityInventoryComponent)
-                  ?.container?.clearAll();
-          } catch (error) {
-              console.error("Player cleanup failed:", error);
-          }
+        try {
+          // Reset player state
+          player.teleport(this.config.lobbyLocation);
+          player.removeTag(this.config.playerTag);
+          player.runCommand(`gamemode creative`);
+          (player.getComponent("minecraft:inventory") as EntityInventoryComponent)?.container?.clearAll();
+        } catch (error) {
+          console.error("Player cleanup failed:", error);
+        }
       });
-      
+
       // Reset game state
       resetScoreboard(this.config.scoreboardConfig.objectiveId);
       this.currentLevelIndex = 0;
       this.score = 0;
       this.totalScore = 0;
       this.lives = this.config.lives;
-      
+
       this.onGameEnd?.();
-  }, 100);
-}
+    }, 100);
+  }
 
   private broadcastMessage(message: string) {
     this.players.forEach((player) => player.sendMessage(message));

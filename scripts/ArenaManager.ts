@@ -54,10 +54,7 @@ export function setupArena(
   return true;
 }
 
-export function createArena(
-  dimensions: ArenaDimensions,
-  options: ArenaCreationOptions
-) {
+export function createArena(dimensions: ArenaDimensions, options: ArenaCreationOptions) {
   // Phase 1: Clear space
   system.run(() => {
     fillBlock(
@@ -73,7 +70,7 @@ export function createArena(
 
   // Phase 2: Build structures with delays
   const bedrockPerm = BlockPermutation.resolve("minecraft:bedrock");
-  
+
   if (options.includeFloor) {
     system.runTimeout(() => {
       fillFloor(
@@ -111,7 +108,7 @@ export function createArena(
         dimensions.xOffset + dimensions.xSize / 2,
         dimensions.zOffset + dimensions.zSize / 2
       );
-      
+
       if (options.lighting) {
         addArenaLighting(
           dimensions.xOffset,
@@ -134,17 +131,17 @@ export function clearArena(arenaLocation: DimensionLocation, arenaSize: { x: num
   const endY = y + arenaSize.y;
 
   // Clear entities first
-  dimension.getEntities({
-    location: { x, y, z },
-    maxDistance: Math.max(arenaSize.x, arenaSize.z)
-  }).forEach(entity => {
-    if (!(entity instanceof Player)) entity.kill();
-  });
+  dimension
+    .getEntities({
+      location: { x, y, z },
+      maxDistance: Math.max(arenaSize.x, arenaSize.z),
+    })
+    .forEach((entity) => {
+      if (!(entity instanceof Player)) entity.kill();
+    });
 
   // Then clear blocks with command
-  dimension.runCommandAsync(
-    `fill ${startX} ${y} ${startZ} ${endX} ${endY} ${endZ} air`
-  ).catch(console.error);
+  dimension.runCommandAsync(`fill ${startX} ${y} ${startZ} ${endX} ${endY} ${endZ} air`).catch(console.error);
 }
 
 // Utility functions with error handling
@@ -170,25 +167,11 @@ function fillBlock(
   }
 }
 
-function fillFloor(
-  blockPerm: BlockPermutation,
-  xFrom: number,
-  y: number,
-  zFrom: number,
-  xTo: number,
-  zTo: number
-) {
+function fillFloor(blockPerm: BlockPermutation, xFrom: number, y: number, zFrom: number, xTo: number, zTo: number) {
   fillBlock(blockPerm, xFrom, y, zFrom, xTo, y, zTo);
 }
 
-function fillRoof(
-  blockPerm: BlockPermutation,
-  xFrom: number,
-  y: number,
-  zFrom: number,
-  xTo: number,
-  zTo: number
-) {
+function fillRoof(blockPerm: BlockPermutation, xFrom: number, y: number, zFrom: number, xTo: number, zTo: number) {
   fillBlock(blockPerm, xFrom, y, zFrom, xTo, y, zTo);
 }
 
@@ -208,7 +191,7 @@ function fourWalls(
       overworld.getBlock({ x, y, z: zTo })?.setPermutation(blockPerm);
     }
   }
-  
+
   // East/West walls
   for (let z = zFrom + 1; z < zTo; z++) {
     for (let y = yFrom; y <= yTo; y++) {
@@ -218,19 +201,11 @@ function fourWalls(
   }
 }
 
-function addArenaLighting(
-  centerX: number,
-  yLevel: number,
-  centerZ: number,
-  sizeX: number,
-  sizeZ: number
-) {
+function addArenaLighting(centerX: number, yLevel: number, centerZ: number, sizeX: number, sizeZ: number) {
   const spacing = 5;
-  for (let x = centerX - Math.floor(sizeX/2); x <= centerX + Math.floor(sizeX/2); x += spacing) {
-    for (let z = centerZ - Math.floor(sizeZ/2); z <= centerZ + Math.floor(sizeZ/2); z += spacing) {
-      overworld.getBlock({ x, y: yLevel, z })?.setPermutation(
-        BlockPermutation.resolve("minecraft:glowstone")
-      );
+  for (let x = centerX - Math.floor(sizeX / 2); x <= centerX + Math.floor(sizeX / 2); x += spacing) {
+    for (let z = centerZ - Math.floor(sizeZ / 2); z <= centerZ + Math.floor(sizeZ / 2); z += spacing) {
+      overworld.getBlock({ x, y: yLevel, z })?.setPermutation(BlockPermutation.resolve("minecraft:glowstone"));
     }
   }
 }
@@ -240,13 +215,10 @@ export function teleportPlayersToArena(
   arenaCenter: { x: number; y: number; z: number },
   dimension: Dimension
 ) {
-  players.forEach(player => {
+  players.forEach((player) => {
     try {
       if (player.isValid()) {
-        player.teleport(
-          { x: arenaCenter.x, y: arenaCenter.y + 2, z: arenaCenter.z },
-          { dimension }
-        );
+        player.teleport({ x: arenaCenter.x, y: arenaCenter.y + 2, z: arenaCenter.z }, { dimension });
       }
     } catch (error) {
       console.error("Teleport failed:", error);

@@ -23,27 +23,27 @@ export class PlayerManager {
   }
 
   // In PlayerManager.ts (hypothetical)
-// Add to PlayerManager class
-// Add to PlayerManager class
-public respawnPlayer(player: Player) {
-  // Remove arena clearing/rebuilding logic
-  player.teleport(
-    {
-      x: this.game.config.arenaLocation.x,
-      y: this.game.config.arenaLocation.y + 2,
-      z: this.game.config.arenaLocation.z
-    },
-    { dimension: this.game.config.arenaLocation.dimension }
-  );
-  
-  // Reset player state
-  player.runCommand(`gamemode ${this.game.config.defaultGamemode}`);
-  const inventory = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
-  inventory.container?.clearAll();
-  this.config.startingInventory.forEach((item) => {
-    inventory.container?.addItem(new ItemStack(item.item, item.count));
-  });
-}
+  // Add to PlayerManager class
+  // Add to PlayerManager class
+  public respawnPlayer(player: Player) {
+    // Remove arena clearing/rebuilding logic
+    player.teleport(
+      {
+        x: this.game.config.arenaLocation.x,
+        y: this.game.config.arenaLocation.y + 2,
+        z: this.game.config.arenaLocation.z,
+      },
+      { dimension: this.game.config.arenaLocation.dimension }
+    );
+
+    // Reset player state
+    player.runCommand(`gamemode ${this.game.config.defaultGamemode}`);
+    const inventory = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
+    inventory.container?.clearAll();
+    this.config.startingInventory.forEach((item) => {
+      inventory.container?.addItem(new ItemStack(item.item, item.count));
+    });
+  }
 
   public isGamePlayer(player: Player): boolean {
     return player.hasTag(this.config.playerTag);
