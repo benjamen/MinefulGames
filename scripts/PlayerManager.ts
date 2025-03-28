@@ -26,30 +26,23 @@ export class PlayerManager {
 // Add to PlayerManager class
 // Add to PlayerManager class
 public respawnPlayer(player: Player) {
-  // Clear existing arena
-  clearArena(this.game.config.arenaLocation, this.game.config.arenaSize);
+  // Remove arena clearing/rebuilding logic
+  player.teleport(
+    {
+      x: this.game.config.arenaLocation.x,
+      y: this.game.config.arenaLocation.y + 2,
+      z: this.game.config.arenaLocation.z
+    },
+    { dimension: this.game.config.arenaLocation.dimension }
+  );
   
-  // Rebuild arena with delay
-  system.runTimeout(() => {
-      setupArena(
-          this.game.config.arenaLocation,
-          this.game.config.arenaSize,
-          this.game.config.arenaSettings
-      );
-      
-      // Teleport player after rebuild
-      system.runTimeout(() => {
-          player.teleport(
-              {
-                  x: this.game.config.arenaLocation.x,
-                  y: this.game.config.arenaLocation.y + 2,
-                  z: this.game.config.arenaLocation.z
-              },
-              { dimension: this.game.config.arenaLocation.dimension }
-          );
-          player.runCommand(`gamemode ${this.game.config.defaultGamemode}`);
-      }, 40);
-  }, 20);
+  // Reset player state
+  player.runCommand(`gamemode ${this.game.config.defaultGamemode}`);
+  const inventory = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
+  inventory.container?.clearAll();
+  this.config.startingInventory.forEach((item) => {
+    inventory.container?.addItem(new ItemStack(item.item, item.count));
+  });
 }
 
   public isGamePlayer(player: Player): boolean {

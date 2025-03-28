@@ -1,33 +1,36 @@
-import { world, DisplaySlotId, Player } from "@minecraft/server";
+import { world, DisplaySlotId, Player, ObjectiveSortOrder } from "@minecraft/server";
 
-export function updatePlayerScore(player: Player, objectiveId: string, value: number) {
+export function setupScoreboard(objectiveId: string, displayName: string): boolean {
+  // ... existing implementation ...
+
   try {
-    const objective = world.scoreboard.getObjective(objectiveId);
-    if (objective) {
-      objective.setScore(player.name, value);
+    let objective = world.scoreboard.getObjective(objectiveId);
+    
+    if (!objective) {
+      objective = world.scoreboard.addObjective(objectiveId, displayName);
     }
+    
+    world.scoreboard.setObjectiveAtDisplaySlot(DisplaySlotId.Sidebar, {
+      objective,
+      sortOrder: ObjectiveSortOrder.Descending
+    });
+    
+    return true;
   } catch (error) {
-    console.error("Score update failed:", error);
+    console.error("Scoreboard setup failed:", error);
+    return false;
   }
 }
 
-export function setupScoreboard(objectiveId: string, displayName: string) {
+export function updatePlayerScore(player: Player, objectiveId: string, score: number) {
   try {
-    // Remove existing objective if it exists
-    if (world.scoreboard.getObjective(objectiveId)) {
-      world.scoreboard.removeObjective(objectiveId);
-    }
+    const objective = world.scoreboard.getObjective(objectiveId);
+    if (!objective) return;
     
-    // Create new objective
-    const objective = world.scoreboard.addObjective(objectiveId, displayName);
-    
-    // Set objective at sidebar display slot
-    world.scoreboard.setObjectiveAtDisplaySlot(
-      DisplaySlotId.Sidebar, 
-      { objective, sortOrder: 1 }
-    );
+    // Use the Player object directly instead of player.name
+    objective.setScore(player, score);
   } catch (error) {
-    console.error("Scoreboard setup failed:", error);
+    console.error("Score update failed:", error);
   }
 }
 

@@ -27,20 +27,23 @@
         0
       ],
       "entry": "scripts/main.js"
+      ,
+      "capabilities": ["gametest"],
+      "permissions": [
+        "minecraft:api_scoreboard",
+        "minecraft:api_commands"
+      ]
     }
   ],
   "dependencies": [
     {
       "module_name": "@minecraft/server",
-      "version": "1.8.0"
+      "version": "1.18.0"
     },
     {
       "uuid": "2d7ed858-97eb-48a0-b180-7c80d1ce9a48",
-      "version": [
-        1,
-        0,
-        0
-      ]
+      "version": [1, 0, 0]
     }
   ]
 }
+ 

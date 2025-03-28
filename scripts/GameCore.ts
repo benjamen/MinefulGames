@@ -85,12 +85,22 @@ public startGame() {
   setupArena(this.config.arenaLocation, this.config.arenaSize, this.config.arenaSettings);
   
   // Delay level initialization
+  // In startGame() method, modify the scoreboard setup:
   system.runTimeout(() => {
-      this.initializePlayers();
-      setupScoreboard(this.config.scoreboardConfig.objectiveId, this.config.scoreboardConfig.displayName);
-      this.registerEventHandlers();
-      this.startLevel();
-  }, 60); // 3 second delay for arena to fully build
+    this.initializePlayers();
+    const scoreboardSuccess = setupScoreboard(
+      this.config.scoreboardConfig.objectiveId,
+      this.config.scoreboardConfig.displayName
+    );
+    
+    if (!scoreboardSuccess) {
+      console.error("Failed to initialize scoreboard");
+      return;
+    }
+    
+    this.registerEventHandlers();
+    this.startLevel();
+  }, 60); // 3 second delay
 }
 
   private initializePlayers() {
@@ -98,8 +108,9 @@ public startGame() {
     this.players.forEach((player) => {
       try {
         // Force-add player to scoreboard
+        // Change this line in initializePlayers():
         world.scoreboard.getObjective(this.config.scoreboardConfig.objectiveId)
-        ?.setScore(player.name, 0);
+        ?.setScore(player, 0); // Use player object instead of player.name
         const inventory = player.getComponent("minecraft:inventory") as EntityInventoryComponent;
         inventory?.container?.clearAll();
 
@@ -207,17 +218,18 @@ private registerEventHandlers() {
   private gameTick() {
     if (this.remainingTime <= 0) return;
   
-    this.remainingTime--;
+    // Decrement by 20 ticks (1 second) instead of 1
+    this.remainingTime -= 20;
   
     // Convert ticks to minutes and seconds
     const totalSeconds = Math.floor(this.remainingTime / 20);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    
+  
     this.players.forEach((player) => {
       player.onScreenDisplay.setActionBar(
         `Level: ${this.currentLevelIndex + 1} | ` +
-        `Time: ${minutes}m ${seconds}s | ` + // Show minutes and seconds
+        `Time: ${minutes}m ${seconds.toString().padStart(2, '0')}s | ` + // Added leading zero
         `Lives: ${this.lives} | ` +
         `Score: ${this.score}/${this.currentLevel.goal}`
       );
